@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+
+//TODO - parse JSON input from file
+//TODO - parse JSON input from strings/memory
 
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
@@ -47,7 +51,8 @@ typedef struct JDPL_OBJECT
 static uint32_t hash_str(const char* key, size_t size)
 {
 	uint32_t hash_value = 0;
-	for(int i = 0; i < strlen(key); i++)
+	size_t key_size = strlen(key);
+	for(size_t i = 0; i < key_size; i++)
 	{
 		hash_value = ((hash_value * 251) + key[i]) % size;
 	}
@@ -169,6 +174,16 @@ jdpl_val* jdpl_valb(int data)
 	to_return->data_size = sizeof(char) * 6;
 	to_return->data = malloc(to_return->data_size);
 	memcpy(to_return->data, bool_data, sizeof(char) * 6);
+	
+	return to_return;
+}
+
+jdpl_val* jdpl_valnull()
+{
+	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+	to_return->type = JDPL_TYPE_NULL;
+	to_return->data = NULL;
+	to_return->data_size = 0;
 	
 	return to_return;
 }
@@ -325,6 +340,11 @@ void jdpl_free_keypair(jdpl_keypair* to_free)
 	to_free = NULL;
 }
 
+
+/***********************************************************************
+ ********************OBJECT SET FUNCTIONS*******************************
+ ***********************************************************************/
+
 //search a JSON object for a particular key. returns NULL if not found.
 static int jdpl_search_obj(const char* key, jdpl_obj* to_search)
 {
@@ -428,10 +448,6 @@ static void jdpl_resize_hashmap(jdpl_obj* src, size_t new_size)
 	
 	free(temp_array);
 }
-
-/***********************************************************************
- ********************OBJECT SET FUNCTIONS*******************************
- ***********************************************************************/
 
 //shallow copy value
 void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
@@ -618,280 +634,10 @@ jdpl_arr* jdpl_objgetarr(const char* key, jdpl_obj* to_search)
 	return (jdpl_arr*)to_return->data;
 }
 
-/*************************************************************************
- ***************************PRINT FUNCTIONS*******************************
- *************************************************************************/
-char* jdpl_val_tostr(jdpl_val*);
-char* jdpl_obj_tostr(jdpl_obj*);
-char* jdpl_arr_tostr(jdpl_arr*);
 
-//convert value to string
-char* jdpl_val_tostr(jdpl_val* to_convert)
-{
-	if(to_convert == NULL)
-	{
-		return NULL;
-	}
-	
-	char* to_return = NULL;
-	switch(to_convert->type)
-	{
-		case JDPL_TYPE_BOOL:
-		{
-			to_return = (char*)malloc(6);
-			memcpy(to_return, to_convert->data, 6);
-			break;
-		}
-			
-		case JDPL_TYPE_NUM:
-		{
-			to_return = (char*)malloc(24);
-			double num = *(double*)to_convert->data;
-			if(num - (int64_t)num == 0)
-			{
-				sprintf(to_return, "%ld", (int64_t)num);
-			}
-			else
-			{
-				sprintf(to_return, "%lf", num);
-			}
-		}
-			break;
-			
-		case JDPL_TYPE_TEXT:
-		{
-			to_return = (char*)malloc(to_convert->data_size + 2);
-			to_return[0] = '"';
-			memcpy(to_return + 1, to_convert->data, to_convert->data_size);
-			to_return[to_convert->data_size] = '"';
-			to_return[to_convert->data_size + 1] = '\0';
-			break;
-		}
-			
-		case JDPL_TYPE_OBJ:
-		{
-			to_return = jdpl_obj_tostr((jdpl_obj*)to_convert->data);
-			break;
-		}
-			
-		case JDPL_TYPE_ARR:
-		{
-			to_return = jdpl_arr_tostr((jdpl_arr*)to_convert->data);
-			break;
-		}
-			
-		case JDPL_TYPE_NULL:
-		{
-			to_return = (char*)malloc(5);
-			strcpy(to_return, "null");
-			break;
-		}
-			
-		case JDPL_TYPE_INVALID:
-			break;
-	}
-	
-	return to_return;
-}
-
-//convert keypair to string
-static char* jdpl_keypair_tostr(jdpl_keypair* to_convert)
-{
-	char* value_str = jdpl_val_tostr(to_convert->value);
-	int key_size = strlen(to_convert->key);
-	int value_size = strlen(value_str);
-	int str_size = key_size + value_size + 4;
-	
-	char* to_return = (char*)malloc(str_size);
-	
-	to_return[0] = '"';
-	memcpy(to_return + 1, to_convert->key, key_size);
-	to_return[key_size + 1] = '"';
-	to_return[key_size + 2] = ':';
-	memcpy(to_return+key_size+3, value_str, value_size);
-	to_return[str_size - 1] = '\0';
-	
-	free(value_str);
-	return to_return;
-}
-
-
-//convert object to flattened string {obj}
-char* jdpl_obj_tostr(jdpl_obj* to_convert)
-{
-	int str_size = 3;
-	int str_index = 1;
-	int read_objects = 0;
-	char* to_return = (char*)malloc(str_size);
-	memset(to_return, 0, 3);
-	
-	to_return[0] = '{';
-	for(int i = 0; i < to_convert->max_size; i++)
-	{
-		jdpl_keypair* keypair = to_convert->hashmap[i];
-		if(keypair == NULL)
-		{
-			continue;
-		}
-		
-		int expand_val = 1;
-		if(read_objects == to_convert->count - 1)
-		{
-			expand_val -= 1;
-		}
-		
-		char* keypair_str = jdpl_keypair_tostr(keypair);
-		int chunk_len = strlen(keypair_str);
-		int starting_index = str_index;
-		str_size += chunk_len + expand_val;
-		
-		char* temp = (char*)realloc(to_return, str_size);
-		if(temp == NULL)
-		{
-			fprintf(stderr, "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n", str_size);
-			exit(1);
-		}
-		to_return = temp;
-		
-		memcpy(to_return + starting_index, keypair_str, chunk_len);
-		str_index += chunk_len;
-		
-		if(read_objects != to_convert->count - 1)
-		{
-			to_return[str_index] = ',';
-			str_index++;
-		}
-		
-		read_objects++;
-		free(keypair_str);
-	}
-	to_return[str_size - 2] = '}';
-	to_return[str_size - 1] = '\0';
-	
-	return to_return;
-}
-
-//convert array to flattened string [arr]
-char* jdpl_arr_tostr(jdpl_arr* to_convert)
-{
-	int str_size = 3;
-	int str_index = 1;
-	char* to_return = (char*)malloc(str_size);
-	memset(to_return, 0, 3);
-	
-	strcat(to_return, "[");
-	for(int i = 0; i < to_convert->count; i++)
-	{
-		int expand_val = 1;
-		if(i == to_convert->count - 1)
-		{
-			expand_val -= 1;
-		}
-		
-		//expand str array
-		char* val_str = jdpl_val_tostr(to_convert->arr[i]);
-		int val_size = strlen(val_str);
-		str_size += val_size + expand_val;
-		
-		char* temp = (char*)realloc(to_return, str_size);
-		if(temp == NULL)
-		{
-			fprintf(stderr, "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n", str_size);
-			exit(1);
-		}
-		to_return = temp;
-		
-		//add new data
-		memcpy(to_return + str_index, val_str, val_size);
-		str_index += val_size;
-		
-		if(i != to_convert->count - 1)
-		{
-			to_return[str_index] = ',';
-			str_index++;
-		}
-		free(val_str);
-	}
-	to_return[str_size-2] = ']';
-	to_return[str_size-1] = '\0';
-	
-	return to_return;
-}
-
-//takes condensed input and prettifies it to human-readable json
-//TODO - output to string instead of printing
-void jdpl_prettify(char* to_prettify, unsigned int indent_size)
-{
-	int indent_level = 0;
-	int in_quote = 0;
-	for(int i = 0; i < strlen(to_prettify); i++)
-	{
-		if(i > 0)
-		{
-			if(to_prettify[i] == '"' && to_prettify[i-1] != '\\')
-			{
-				in_quote = !in_quote;
-			}
-		}
-		
-		if(!in_quote)
-		{
-			if(to_prettify[i] == '{' && to_prettify[i+1] != '}')
-			{
-				printf("{\n");
-				indent_level++;
-				printf("%*c", indent_level * indent_size, ' ');
-			}
-			
-			else if(to_prettify[i] == '}' && to_prettify[i-1] != '{')
-			{
-				indent_level--;
-				printf("\n");
-				printf("%*c", indent_level * indent_size, ' ');
-				printf("}");
-				
-				if(indent_level == 0)
-				{
-					printf("\n");
-				}
-			}
-			
-			else if(to_prettify[i] == '[' && to_prettify[i+1] != ']')
-			{
-				printf("[\n");
-				indent_level++;
-				printf("%*c", indent_level * indent_size, ' ');
-			}
-			
-			else if(to_prettify[i] == ']' && to_prettify[i-1] != '[')
-			{
-				indent_level--;
-				printf("\n");
-				printf("%*c", indent_level * indent_size, ' ');
-				printf("]");
-				
-				if(indent_level == 0)
-				{
-					printf("\n");
-				}
-			}
-			
-			else if(to_prettify[i] == ',')
-			{
-				printf(",\n");
-				printf("%*c", indent_level * indent_size, ' ');
-			}
-			else
-			{
-				printf("%c", to_prettify[i]);
-			}
-		}
-		else
-		{
-			printf("%c", to_prettify[i]);
-		}
-	}
-}
+/***********************************************************************
+ **********************ARRAY SET FUNCTIONS*******************************
+ ***********************************************************************/
 
 //search a JSON array for a particular index. return NULL if out of bounds.
 static jdpl_val* jdpl_search_arr(jdpl_arr* to_search, int index)
@@ -903,10 +649,6 @@ static jdpl_val* jdpl_search_arr(jdpl_arr* to_search, int index)
 	
 	return NULL;
 }
-
-/***********************************************************************
- *********************ARRAY SET FUNCTIONS*******************************
- ***********************************************************************/
 
 void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 {
@@ -945,7 +687,7 @@ void jdpl_arrset(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 }
 
 /***********************************************************************
- *********************ARRAY GET FUNCTIONS*******************************
+ **********************ARRAY GET FUNCTIONS*******************************
  ***********************************************************************/
 
 //generic search
@@ -1024,3 +766,643 @@ jdpl_arr* jdpl_arrgetarr(unsigned int index, jdpl_arr* to_search)
 	
 	return (jdpl_arr*)to_return->data;
 }
+
+/*************************************************************************
+ ***************************TO_STR FUNCTIONS******************************
+ *************************************************************************/
+char* jdpl_val_tostr(jdpl_val*);
+char* jdpl_obj_tostr(jdpl_obj*);
+char* jdpl_arr_tostr(jdpl_arr*);
+
+//convert value to string
+char* jdpl_val_tostr(jdpl_val* to_convert)
+{
+	if(to_convert == NULL)
+	{
+		return NULL;
+	}
+	
+	char* to_return = NULL;
+	switch(to_convert->type)
+	{
+		case JDPL_TYPE_BOOL:
+		{
+			to_return = (char*)malloc(6);
+			memcpy(to_return, to_convert->data, 6);
+			break;
+		}
+			
+		case JDPL_TYPE_NUM:
+		{
+			to_return = (char*)malloc(24);
+			double num = *(double*)to_convert->data;
+			if(num - (int64_t)num == 0)
+			{
+				sprintf(to_return, "%ld", (int64_t)num);
+			}
+			else
+			{
+				sprintf(to_return, "%lf", num);
+			}
+		}
+			break;
+			
+		case JDPL_TYPE_TEXT:
+		{
+			to_return = (char*)malloc(to_convert->data_size + 2);
+			to_return[0] = '"';
+			memcpy(to_return + 1, to_convert->data, to_convert->data_size);
+			to_return[to_convert->data_size] = '"';
+			to_return[to_convert->data_size + 1] = '\0';
+			break;
+		}
+			
+		case JDPL_TYPE_OBJ:
+		{
+			to_return = jdpl_obj_tostr((jdpl_obj*)to_convert->data);
+			break;
+		}
+			
+		case JDPL_TYPE_ARR:
+		{
+			to_return = jdpl_arr_tostr((jdpl_arr*)to_convert->data);
+			break;
+		}
+			
+		case JDPL_TYPE_NULL:
+		{
+			to_return = (char*)malloc(5);
+			strcpy(to_return, "null");
+			break;
+		}
+			
+		case JDPL_TYPE_INVALID:
+			break;
+	}
+	
+	return to_return;
+}
+
+//convert keypair to string
+static char* jdpl_keypair_tostr(jdpl_keypair* to_convert)
+{
+	char* value_str = jdpl_val_tostr(to_convert->value);
+	size_t key_size = strlen(to_convert->key);
+	size_t value_size = strlen(value_str);
+	int str_size = key_size + value_size + 5;
+	
+	char* to_return = (char*)malloc(str_size);
+	
+	to_return[0] = '"';
+	memcpy(to_return + 1, to_convert->key, key_size);
+	to_return[key_size + 1] = '"';
+	to_return[key_size + 2] = ':';
+	to_return[key_size + 3] = ' ';
+	memcpy(to_return+key_size+4, value_str, value_size);
+	to_return[str_size - 1] = '\0';
+	
+	free(value_str);
+	return to_return;
+}
+
+
+//convert object to flattened string {obj}
+char* jdpl_obj_tostr(jdpl_obj* to_convert)
+{
+	int str_size = 3;
+	int str_index = 1;
+	int read_objects = 0;
+	char* to_return = (char*)malloc(str_size);
+	memset(to_return, 0, 3);
+	
+	to_return[0] = '{';
+	for(int i = 0; i < to_convert->max_size; i++)
+	{
+		jdpl_keypair* keypair = to_convert->hashmap[i];
+		if(keypair == NULL)
+		{
+			continue;
+		}
+		
+		int expand_val = 1;
+		if(read_objects == to_convert->count - 1)
+		{
+			expand_val -= 1;
+		}
+		
+		char* keypair_str = jdpl_keypair_tostr(keypair);
+		size_t chunk_len = strlen(keypair_str);
+		int starting_index = str_index;
+		str_size += chunk_len + expand_val;
+		
+		char* temp = (char*)realloc(to_return, str_size);
+		if(temp == NULL)
+		{
+			fprintf(stderr, "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n", str_size);
+			exit(1);
+		}
+		to_return = temp;
+		
+		memcpy(to_return + starting_index, keypair_str, chunk_len);
+		str_index += chunk_len;
+		
+		if(read_objects != to_convert->count - 1)
+		{
+			to_return[str_index] = ',';
+			str_index++;
+		}
+		
+		read_objects++;
+		free(keypair_str);
+	}
+	to_return[str_size - 2] = '}';
+	to_return[str_size - 1] = '\0';
+	
+	return to_return;
+}
+
+//convert array to flattened string [arr]
+char* jdpl_arr_tostr(jdpl_arr* to_convert)
+{
+	int str_size = 3;
+	int str_index = 1;
+	char* to_return = (char*)malloc(str_size);
+	memset(to_return, 0, 3);
+	
+	strcat(to_return, "[");
+	for(int i = 0; i < to_convert->count; i++)
+	{
+		int expand_val = 1;
+		if(i == to_convert->count - 1)
+		{
+			expand_val -= 1;
+		}
+		
+		//expand str array
+		char* val_str = jdpl_val_tostr(to_convert->arr[i]);
+		size_t val_size = strlen(val_str);
+		str_size += val_size + expand_val;
+		
+		char* temp = (char*)realloc(to_return, str_size);
+		if(temp == NULL)
+		{
+			fprintf(stderr, "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n", str_size);
+			exit(1);
+		}
+		to_return = temp;
+		
+		//add new data
+		memcpy(to_return + str_index, val_str, val_size);
+		str_index += val_size;
+		
+		if(i != to_convert->count - 1)
+		{
+			to_return[str_index] = ',';
+			str_index++;
+		}
+		free(val_str);
+	}
+	to_return[str_size-2] = ']';
+	to_return[str_size-1] = '\0';
+	
+	return to_return;
+}
+
+//takes condensed input and prettifies it to human-readable json
+void jdpl_prettify(char** to_prettify, unsigned int indent_size)
+{
+	int index = 0;
+	size_t str_max = (strlen(*to_prettify) + 1) * 1.5;
+	char* str = (char*)malloc(str_max);
+	char* src_str = *to_prettify;
+	size_t src_len = strlen(src_str);
+	
+	int indent_level = 0;
+	int in_quote = 0;
+	for(size_t i = 0; i < src_len; i++)
+	{
+		if(i > 0)
+		{
+			if(src_str[i] == '"' && src_str[i-1] != '\\')
+			{
+				in_quote = !in_quote;
+			}
+		}
+		
+		if(!in_quote)
+		{
+			if(src_str[i] == '{' && src_str[i+1] != '}')
+			{
+				str[index] = '{';
+				str[index+1] = '\n';
+				index += 2;
+				indent_level++;
+				
+				for(int x = 0; x < indent_level * indent_size; x++)
+				{
+					str[index] = ' ';
+					index++;
+				}
+			}
+			
+			else if(src_str[i] == '}' && src_str[i-1] != '{')
+			{
+				indent_level--;
+				str[index] = '\n';
+				index++;
+				
+				for(int x = 0; x < indent_level * indent_size; x++)
+				{
+					str[index] = ' ';
+					index++;
+				}
+				
+				str[index] = '}';
+				index++;
+				if(indent_level == 0)
+				{
+					str[index] = '\n';
+				}
+			}
+			
+			else if(src_str[i] == '[' && src_str[i+1] != ']')
+			{
+				str[index] = '[';
+				str[index+1] = '\n';
+				index += 2;
+				indent_level++;
+				
+				for(int x = 0; x < indent_level * indent_size; x++)
+				{
+					str[index] = ' ';
+					index++;
+				}
+			}
+			
+			else if(src_str[i] == ']' && src_str[i-1] != '[')
+			{
+				indent_level--;
+				str[index] = '\n';
+				index++;
+				
+				for(int x = 0; x < indent_level * indent_size; x++)
+				{
+					str[index] = ' ';
+					index++;
+				}
+				
+				str[index] = ']';
+				index++;
+				if(indent_level == 0)
+				{
+					str[index] = '\n';
+				}
+			}
+			
+			else if(src_str[i] == ',')
+			{
+				str[index] = ',';
+				str[index+1] = '\n';
+				index += 2;
+				
+				for(int x = 0; x < indent_level * indent_size; x++)
+				{
+					str[index] = ' ';
+					index++;
+				}
+			}
+			else
+			{
+				str[index] = src_str[i];
+				index++;
+			}
+		}
+		else
+		{
+			str[index] = src_str[i];
+			index++;
+		}
+		
+		if(index >= str_max * 0.75)
+		{
+			str = (char*)realloc(str, str_max * 1.5);
+			str_max = str_max * 1.5;
+		}
+	}
+	
+	str = (char*)realloc(str, index+1);
+	str[index] = '\0';
+	
+	free(*to_prettify);
+	*to_prettify = str;
+}
+
+/*************************************************************************
+ ****************************PARSING FUNCTIONS****************************
+ *************************************************************************/
+jdpl_obj* jdpl_obj_fromstr(const char* str);
+jdpl_arr* jdpl_arr_fromstr(const char* str);
+
+//TODO - account for trailing whitespaces
+static jdpl_val* parse_value(const char* str, int len)
+{
+	//flags for finding out which data type we have
+	int is_str = 0;
+	int is_obj = 0;
+	int is_arr = 0;
+	int is_number = 1;
+	int whitespace_counter = 0;
+	int trailing_whitespace = 0;
+	
+	for(size_t i = 0; i < len; i++)
+	{
+		const char* cur = (str+i);
+		if(isspace(*cur))
+		{
+			whitespace_counter++;
+		}
+		else if(*cur == '"')
+		{
+			is_str = 1;
+			is_number = 0;
+			break;
+		}
+		else if(*cur == '{')
+		{
+			is_obj = 1;
+			is_number = 0;
+			break;
+		}
+		else if(*cur == '[')
+		{
+			is_arr = 1;
+			is_number = 0;
+			break;
+		}
+		else if(!isdigit(*cur) && *cur != '.')
+		{
+			is_number = 0;
+		}
+	}
+	if(is_str)
+	{
+		//copy substr for value
+		size_t data_size = len - 1 - whitespace_counter;
+		char* value = (char*)malloc(data_size + 1);
+		memcpy(value, str+1+whitespace_counter, (data_size - 1));
+		value[data_size] = '\0';
+		
+		//return new value
+		jdpl_val* to_return = jdpl_vals(value);
+		free(value);
+		return to_return;
+	}
+	else if(is_number)
+	{
+		//copy substr for value
+		size_t data_size = len - whitespace_counter;
+		char* value = (char*)malloc(data_size + 1);
+		memcpy(value, str+whitespace_counter, data_size);
+		value[data_size] = '\0';
+		
+		//return new value
+		jdpl_val* to_return = jdpl_vald(atof(value));
+		free(value);
+		return to_return;
+	}
+	else if(is_obj)
+	{
+		return jdpl_valobj(jdpl_obj_fromstr(str));
+	}
+	else if(is_arr)
+	{
+		return jdpl_valarr(jdpl_arr_fromstr(str));
+	}
+	
+	
+	//parse for boolean or null values
+	else
+	{
+		if(len - whitespace_counter <= 4)
+		{
+			return jdpl_valnull();
+		}
+		
+		const char* cur = str+whitespace_counter;
+		if(strncmp(cur, "true", 4) == 0)
+		{
+			return jdpl_valb(1);
+		}
+		else if(strncmp(cur, "null", 4) == 0)
+		{
+			return jdpl_valnull();
+		}
+		else if(strncmp(cur, "false", 5) == 0)
+		{
+			return jdpl_valb(0);
+		}
+	}
+	
+	//error case where value cannot be parsed correctly. This will not destroy the overall structure
+	return jdpl_valnull();
+}
+
+
+static jdpl_keypair* parse_keypair(const char* str)
+{
+	jdpl_keypair* to_return = (jdpl_keypair*)malloc(sizeof(jdpl_keypair));
+	to_return->key = NULL;
+	to_return->value = NULL;
+	
+	size_t len = strlen(str);
+	int in_quote = 0;
+	int obj_indentation = 0;
+	int arr_indentation = 0;
+	int separator_index = -1;
+	
+	int key_start = -1;
+	int key_end = -1;
+	
+	int data_start = -1;
+	int data_end = -1;
+	
+	for(size_t i = 0; i < len; i++)
+	{
+		if(i > 0)
+		{
+			if(str[i] == '"' && str[i-1] != '\\')
+			{
+				in_quote = !in_quote;
+				
+				//find key
+				if(separator_index < 0 && key_start < 0)
+				{
+					key_start = i;
+				}
+				else if (separator_index < 0 && key_end < 0)
+				{
+					key_end = i;
+				}
+			}
+		}
+		else
+		{
+			if(str[i] == '"')
+			{
+				in_quote = !in_quote;
+				
+				//find key
+				if(separator_index < 0 && key_start < 0)
+				{
+					key_start = i;
+				}
+				else if (separator_index < 0 && key_end < 0)
+				{
+					key_end = i;
+				}
+			}
+		}
+		
+		if(!in_quote)
+		{
+			if(str[i] == ':')
+			{
+				separator_index = i;
+				data_start = separator_index + 1;
+			}
+			
+			//string number etc
+			else if(str[i] == ',')
+			{
+				data_end = i-1;
+				break;
+			}
+			
+			//object
+			else if(str[i] == '{')
+			{
+				data_start = i;
+				obj_indentation++;
+			}
+			else if(str[i] == '}')
+			{
+				//end of json object
+				if(obj_indentation == 0)
+				{
+					data_end = i-1;
+					break;
+				}
+				
+				obj_indentation--;
+				if(obj_indentation == 0 && arr_indentation == 0)
+				{
+					data_end = i;
+					break;
+				}
+			}
+			
+			//array
+			else if(str[i] == '[')
+			{
+				data_start = i;
+				arr_indentation++;
+			}
+			
+			else if(str[i] == ']')
+			{
+				arr_indentation--;
+				if(obj_indentation == 0 && arr_indentation == 0)
+				{
+					data_end = i;
+					break;
+				}
+			}
+		}
+		
+	}
+	
+	//make copy of key
+	int key_len = key_end - key_start - 1;
+	to_return->key = (char*)malloc(key_len + 1);
+	to_return->key[key_len] = '\0';
+	memcpy(to_return->key, str + key_start + 1, key_len);
+	
+	//parse value
+	to_return->value = parse_value(str+data_start, data_end - data_start + 1);
+	
+	return to_return;
+}
+
+jdpl_obj* jdpl_obj_fromstr(const char* str)
+{
+	jdpl_obj* to_return = jdpl_new_obj();
+	
+	size_t len = strlen(str);
+	if(str[0] != '{')
+	{
+		return NULL;
+	}
+	
+	for(size_t i = 0; i < len; i++)
+	{
+		if(i > 0)
+		{
+			if(str[i-1] == '{' || str[i-1] == ',')
+			{
+				jdpl_keypair* to_add = parse_keypair(str + i);
+				jdpl_objadd(to_add->key, to_add->value, to_return);
+				
+				//this is somewhat wasteful but we need a substr method
+				free(to_add->key);
+			}
+		}
+	}
+	
+	return to_return;
+}
+
+jdpl_arr* jdpl_arr_fromstr(const char* str)
+{
+	jdpl_arr* to_return = jdpl_new_arr();
+	
+	size_t len = strlen(str);
+	if(str[0] != '[')
+	{
+		return NULL;
+	}
+	
+	size_t val_start = 0;
+	size_t val_end = 0;
+	int indentation_level = 0;
+	for(size_t i = 0; i < len; i++)
+	{
+		if(i > 0)
+		{
+			if(str[i-1] == '[' || str[i-1] == ',')
+			{
+				val_start = i;
+			}
+			else if(str[i] == ']' || str[i] == ',')
+			{
+				val_end = i;
+			}
+		}
+	}
+	
+	return to_return;
+}
+
+jdpl_obj* jdpl_obj_fromfile(const char* filename)
+{
+	jdpl_obj* to_return = jdpl_new_obj();
+	
+	return to_return;
+}
+
+jdpl_arr* jdpl_arr_fromfile(const char* str)
+{
+	jdpl_arr* to_return = jdpl_new_arr();
+	
+	return to_return;
+}
+
