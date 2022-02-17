@@ -17,11 +17,24 @@ typedef enum JDPL_TYPE_ENUM
 	JDPL_TYPE_TEXT, JDPL_TYPE_NUM, JDPL_TYPE_BOOL, JDPL_TYPE_OBJ, JDPL_TYPE_ARR, JDPL_TYPE_NULL, JDPL_TYPE_INVALID
 }JDPL_TYPE;
 
+typedef struct JDPL_ARRAY  jdpl_arr;
+typedef struct JDPL_OBJECT jdpl_obj;
+
 typedef struct JDPL_VALUE
 {
 	JDPL_TYPE type; //type of held data
 	size_t data_size;  //size of held data in bytes
-	void* data;     //pointer to data
+
+	//union that will hold data
+	union DATA
+	{
+		double num;
+		char* text;
+		int bool;
+		jdpl_obj* obj;
+		jdpl_arr* arr;
+		int null;
+	}data;
 	
 }jdpl_val;
 
@@ -95,25 +108,20 @@ jdpl_arr* jdpl_new_arr()
 jdpl_val* jdpl_vali(int data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_NUM;
-	
 	to_return->data_size = sizeof(double);
-	to_return->data = malloc(to_return->data_size);
-	double data_copy = (double)data;
-	memcpy(to_return->data, &data_copy, sizeof(double));
-	
+	to_return->data.num = (double)data;
 	return to_return;
 }
 
 jdpl_val* jdpl_vall(int64_t data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_NUM;
-	
 	to_return->data_size = sizeof(double);
-	to_return->data = malloc(to_return->data_size);
-	double data_copy = (double)data;
-	memcpy(to_return->data, &data_copy, sizeof(double));
+	to_return->data.num = (double)data;
 	
 	return to_return;
 }
@@ -121,11 +129,11 @@ jdpl_val* jdpl_vall(int64_t data)
 jdpl_val* jdpl_vals(const char* data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_TEXT;
-	
 	to_return->data_size = strlen(data) + 1;
-	to_return->data = malloc(to_return->data_size);
-	memcpy(to_return->data, data, to_return->data_size);
+	to_return->data.text = malloc(to_return->data_size);
+	memcpy(to_return->data.text, data, to_return->data_size);
 	
 	return to_return;
 }
@@ -133,12 +141,10 @@ jdpl_val* jdpl_vals(const char* data)
 jdpl_val* jdpl_valf(float data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_NUM;
-	
 	to_return->data_size = sizeof(double);
-	to_return->data = malloc(to_return->data_size);
-	double data_copy = (double)data;
-	memcpy(to_return->data, &data_copy, sizeof(double));
+	to_return->data.num = (double)data;
 	
 	return to_return;
 }
@@ -146,11 +152,10 @@ jdpl_val* jdpl_valf(float data)
 jdpl_val* jdpl_vald(double data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_NUM;
-	
 	to_return->data_size = sizeof(double);
-	to_return->data = malloc(to_return->data_size);
-	memcpy(to_return->data, &data, sizeof(double));
+	to_return->data.num = data;
 	
 	return to_return;
 }
@@ -158,23 +163,11 @@ jdpl_val* jdpl_vald(double data)
 jdpl_val* jdpl_valb(int data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_BOOL;
-	
-	char bool_data[6];
-	
-	if(data)
-	{
-		strcpy(bool_data, "true");
-	}
-	else
-	{
-		strcpy(bool_data, "false");
-	}
-	
-	to_return->data_size = sizeof(char) * 6;
-	to_return->data = malloc(to_return->data_size);
-	memcpy(to_return->data, bool_data, sizeof(char) * 6);
-	
+	to_return->data_size = sizeof(int);
+	to_return->data.bool = data;
+
 	return to_return;
 }
 
@@ -182,8 +175,8 @@ jdpl_val* jdpl_valnull()
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 	to_return->type = JDPL_TYPE_NULL;
-	to_return->data = NULL;
-	to_return->data_size = 0;
+	to_return->data_size = sizeof(int);
+	to_return->data.null = 1;
 	
 	return to_return;
 }
@@ -192,10 +185,10 @@ jdpl_val* jdpl_valnull()
 jdpl_val* jdpl_valobj(jdpl_obj* data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_OBJ;
-	
 	to_return->data_size = sizeof(jdpl_obj*);
-	to_return->data = data;
+	to_return->data.obj = data;
 	
 	return to_return;
 }
@@ -203,10 +196,10 @@ jdpl_val* jdpl_valobj(jdpl_obj* data)
 jdpl_val* jdpl_valarr(jdpl_arr* data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
 	to_return->type = JDPL_TYPE_ARR;
-	
 	to_return->data_size = sizeof(jdpl_arr);
-	to_return->data = data;
+	to_return->data.arr = data;
 	
 	return to_return;
 }
@@ -218,9 +211,16 @@ jdpl_val* jdpl_val_copy(jdpl_val* to_copy)
 	
 	to_return->type = to_copy->type;
 	to_return->data_size = to_copy->data_size;
-	
-	to_return->data = malloc(to_copy->data_size);
-	memcpy(to_return->data, to_copy->data, to_copy->data_size);
+
+	if(to_copy->type != JDPL_TYPE_TEXT)
+	{
+		to_return->data = to_copy->data;
+	}
+	else
+	{
+		to_return->data.text = malloc(to_copy->data_size);
+		memcpy(to_return->data.text, to_copy->data.text, to_copy->data_size);
+	}
 	
 	return to_return;
 }
@@ -291,27 +291,26 @@ void jdpl_free_val(jdpl_val* to_free)
 		return;
 	}
 	
-	if(to_free->data == NULL)
-	{
-		return;
-	}
-	
 	if(to_free->type == JDPL_TYPE_OBJ)
 	{
-		jdpl_free_obj((jdpl_obj*)to_free->data);
-		to_free->data = NULL;
+		jdpl_free_obj(to_free->data.obj);
+		to_free->data.obj = NULL;
 	}
 	else if(to_free->type == JDPL_TYPE_ARR)
 	{
-		jdpl_free_arr((jdpl_arr*)to_free->data);
-		to_free->data = NULL;
+		jdpl_free_arr(to_free->data.arr);
+		to_free->data.arr = NULL;
 	}
-	else
+	else if(to_free->type == JDPL_TYPE_TEXT)
 	{
-		free(to_free->data);
-		to_free->data_size = 0;
-		to_free->data = NULL;
+		free(to_free->data.text);
+		to_free->data.text = NULL;
 	}
+
+	//set value to null
+	to_free->type = JDPL_TYPE_NULL;
+	to_free->data_size = sizeof(int);
+	to_free->data.null = 1;
 	
 	free(to_free);
 	to_free = NULL;
@@ -449,6 +448,38 @@ static void jdpl_resize_hashmap(jdpl_obj* src, size_t new_size)
 	free(temp_array);
 }
 
+//add keypair objects directly
+static void jdpl_objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
+{
+	//resize array if it's getting too full(too full = too slow)
+	if(to_set->count >= to_set->max_size - to_set->max_size / 4)
+	{
+		jdpl_resize_hashmap(to_set, to_set->max_size * 1.5);
+	}
+	
+	//search for existing keys
+	int index = jdpl_search_obj(to_add->key, to_set);
+	
+	//no room in object for new index (should never happen)
+	if(index == -1)
+	{
+		fprintf(stderr, "jdpl_objadd: resizing error - not enough room in hashmap for new object with key %s\n", to_add->key);
+		return;
+	}
+	
+	//overwrite old index
+	if(to_set->hashmap[index] != NULL)
+	{
+		jdpl_free_keypair(to_set->hashmap[index]);
+		to_set->hashmap[index] = NULL;
+	}
+	
+	//write new value
+	to_set->hashmap[index] = to_add;
+	to_set->count += 1;
+	
+}
+
 //shallow copy value
 void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 {
@@ -531,10 +562,10 @@ const char* jdpl_objgets(const char* key, jdpl_obj* to_search)
 		return NULL;
 	}
 	
-	return (const char*)to_return->data;
+	return to_return->data.text;
 }
 
-//decimal(double)
+//number (always double)
 double* jdpl_objgetnum(const char* key, jdpl_obj* to_search)
 {
 	int index = jdpl_search_obj(key, to_search);
@@ -554,38 +585,30 @@ double* jdpl_objgetnum(const char* key, jdpl_obj* to_search)
 		return NULL;
 	}
 	
-	return (double*)to_return->data;
+	return &to_return->data.num;
 }
 
 //bool(boolean) 1 true 0 false -1 error
-int jdpl_objgetb(const char* key, jdpl_obj* to_search)
+int* jdpl_objgetb(const char* key, jdpl_obj* to_search)
 {
 	int index = jdpl_search_obj(key, to_search);
 	if(index < 0)
 	{
-		return -1;
+		return NULL;
 	}
 	jdpl_val* to_return = to_search->hashmap[index]->value;
 	
 	if(to_return == NULL)
 	{
-		return -1;
+		return NULL;
 	}
 	
 	if(to_return->type != JDPL_TYPE_BOOL)
 	{
-		return -1;
+		return NULL;
 	}
 	
-	//check if 
-	if(strcmp((const char*)to_return->data, "true") == 0)
-	{
-		return 1;
-	}
-	else
-	{
-		return 0;
-	}
+	return &to_return->data.bool;
 }
 
 //obj(jdpl_obj)
@@ -608,7 +631,7 @@ jdpl_obj* jdpl_objgetobj(const char* key, jdpl_obj* to_search)
 		return NULL;
 	}
 	
-	return (jdpl_obj*)to_return->data;
+	return to_return->data.obj;
 }
 
 //arr(jdpl_arr)
@@ -631,7 +654,7 @@ jdpl_arr* jdpl_objgetarr(const char* key, jdpl_obj* to_search)
 		return NULL;
 	}
 	
-	return (jdpl_arr*)to_return->data;
+	return to_return->data.arr;
 }
 
 
@@ -710,7 +733,7 @@ double* jdpl_arrgetnum(unsigned int index, jdpl_arr* to_search)
 		return NULL;
 	}
 	
-	return (double*)to_return->data;
+	return &to_return->data.num;
 }
 
 //bool(boolean)
@@ -728,7 +751,7 @@ int* jdpl_arrgetb(unsigned int index, jdpl_arr* to_search)
 		return NULL;
 	}
 	
-	return (int*)to_return->data;
+	return &to_return->data.bool;
 }
 
 //obj(jdpl_obj)
@@ -746,7 +769,7 @@ jdpl_obj* jdpl_arrgetobj(unsigned int index, jdpl_arr* to_search)
 		return NULL;
 	}
 	
-	return (jdpl_obj*)to_return->data;
+	return to_return->data.obj;
 }
 
 //arr(jdpl_arr)
@@ -764,7 +787,7 @@ jdpl_arr* jdpl_arrgetarr(unsigned int index, jdpl_arr* to_search)
 		return NULL;
 	}
 	
-	return (jdpl_arr*)to_return->data;
+	return to_return->data.arr;
 }
 
 /*************************************************************************
@@ -788,14 +811,21 @@ char* jdpl_val_tostr(jdpl_val* to_convert)
 		case JDPL_TYPE_BOOL:
 		{
 			to_return = (char*)malloc(6);
-			memcpy(to_return, to_convert->data, 6);
+			if(to_convert->data.bool)
+			{
+				strcpy(to_return, "true");
+			}
+			else
+			{
+				strcpy(to_return, "false");
+			}
 			break;
 		}
 			
 		case JDPL_TYPE_NUM:
 		{
 			to_return = (char*)malloc(24);
-			double num = *(double*)to_convert->data;
+			double num = to_convert->data.num;
 			if(num - (int64_t)num == 0)
 			{
 				sprintf(to_return, "%ld", (int64_t)num);
@@ -811,7 +841,7 @@ char* jdpl_val_tostr(jdpl_val* to_convert)
 		{
 			to_return = (char*)malloc(to_convert->data_size + 2);
 			to_return[0] = '"';
-			memcpy(to_return + 1, to_convert->data, to_convert->data_size);
+			memcpy(to_return + 1, to_convert->data.text, to_convert->data_size);
 			to_return[to_convert->data_size] = '"';
 			to_return[to_convert->data_size + 1] = '\0';
 			break;
@@ -819,13 +849,13 @@ char* jdpl_val_tostr(jdpl_val* to_convert)
 			
 		case JDPL_TYPE_OBJ:
 		{
-			to_return = jdpl_obj_tostr((jdpl_obj*)to_convert->data);
+			to_return = jdpl_obj_tostr(to_convert->data.obj);
 			break;
 		}
 			
 		case JDPL_TYPE_ARR:
 		{
-			to_return = jdpl_arr_tostr((jdpl_arr*)to_convert->data);
+			to_return = jdpl_arr_tostr(to_convert->data.arr);
 			break;
 		}
 			
@@ -1103,53 +1133,68 @@ void jdpl_prettify(char** to_prettify, unsigned int indent_size)
 jdpl_obj* jdpl_obj_fromstr(const char* str);
 jdpl_arr* jdpl_arr_fromstr(const char* str);
 
-//TODO - account for trailing whitespaces
 static jdpl_val* parse_value(const char* str, int len)
 {
-	//flags for finding out which data type we have
-	int is_str = 0;
-	int is_obj = 0;
-	int is_arr = 0;
-	int is_number = 1;
-	int whitespace_counter = 0;
-	int trailing_whitespace = 0;
+	//flags for finding out which data type we have and content length
+	int is_str    = 0; //flag and also length counter
+	int is_obj    = 0; //flag and also offset value
+	int is_arr    = 0; //flag and also offset value
+	int is_number = 0; //flag and also length counter
 	
+	//flags for counting whitespace preceeding content
+	int count_spaces = 1;
+	int whitespace_counter = 0;
+	
+	//determine type and leading whitespace
 	for(size_t i = 0; i < len; i++)
 	{
 		const char* cur = (str+i);
-		if(isspace(*cur))
+		if(isspace(*cur) && count_spaces)
 		{
 			whitespace_counter++;
+			continue;
 		}
+		
+		//data is str
 		else if(*cur == '"')
 		{
-			is_str = 1;
+			is_str = 2;
 			is_number = 0;
+			i++;
+			
+			//determine length of string
+			while(str[i] != '"' && i < len)
+			{
+				is_str++;
+				i++;
+			}
 			break;
 		}
+		
+		//data is json object
 		else if(*cur == '{')
 		{
-			is_obj = 1;
-			is_number = 0;
+			is_obj = i;
 			break;
 		}
 		else if(*cur == '[')
 		{
-			is_arr = 1;
-			is_number = 0;
+			is_arr = i;
 			break;
 		}
-		else if(!isdigit(*cur) && *cur != '.')
+		else if(isdigit(*cur) || *cur == '.')
 		{
-			is_number = 0;
+			count_spaces = 0;
+			is_number++;
 		}
 	}
+	
 	if(is_str)
 	{
 		//copy substr for value
-		size_t data_size = len - 1 - whitespace_counter;
+		size_t data_size = is_str - 2;
 		char* value = (char*)malloc(data_size + 1);
-		memcpy(value, str+1+whitespace_counter, (data_size - 1));
+		memcpy(value, str+1+whitespace_counter, data_size);
 		value[data_size] = '\0';
 		
 		//return new value
@@ -1160,7 +1205,7 @@ static jdpl_val* parse_value(const char* str, int len)
 	else if(is_number)
 	{
 		//copy substr for value
-		size_t data_size = len - whitespace_counter;
+		size_t data_size = is_number;
 		char* value = (char*)malloc(data_size + 1);
 		memcpy(value, str+whitespace_counter, data_size);
 		value[data_size] = '\0';
@@ -1172,18 +1217,18 @@ static jdpl_val* parse_value(const char* str, int len)
 	}
 	else if(is_obj)
 	{
-		return jdpl_valobj(jdpl_obj_fromstr(str));
+		return jdpl_valobj(jdpl_obj_fromstr(str+is_obj));
 	}
 	else if(is_arr)
 	{
-		return jdpl_valarr(jdpl_arr_fromstr(str));
+		return jdpl_valarr(jdpl_arr_fromstr(str+is_arr));
 	}
 	
 	
 	//parse for boolean or null values
 	else
 	{
-		if(len - whitespace_counter <= 4)
+		if(len >= 5 + whitespace_counter)
 		{
 			return jdpl_valnull();
 		}
@@ -1203,7 +1248,7 @@ static jdpl_val* parse_value(const char* str, int len)
 		}
 	}
 	
-	//error case where value cannot be parsed correctly. This will not destroy the overall structure
+	//error case where value cannot be parsed correctly. This shouldn't destroy the overall structure.
 	return jdpl_valnull();
 }
 
@@ -1220,11 +1265,12 @@ static jdpl_keypair* parse_keypair(const char* str)
 	int arr_indentation = 0;
 	int separator_index = -1;
 	
-	int key_start = -1;
-	int key_end = -1;
+	int key_set = 0;
+	int key_start = 0;
+	int key_end = 0;
 	
-	int data_start = -1;
-	int data_end = -1;
+	int data_start = 0;
+	int data_end = 0;
 	
 	for(size_t i = 0; i < len; i++)
 	{
@@ -1235,11 +1281,12 @@ static jdpl_keypair* parse_keypair(const char* str)
 				in_quote = !in_quote;
 				
 				//find key
-				if(separator_index < 0 && key_start < 0)
+				if(separator_index < 0 && !key_set)
 				{
 					key_start = i;
+					key_set = 1;
 				}
-				else if (separator_index < 0 && key_end < 0)
+				else if (separator_index < 0 && key_set)
 				{
 					key_end = i;
 				}
@@ -1252,11 +1299,12 @@ static jdpl_keypair* parse_keypair(const char* str)
 				in_quote = !in_quote;
 				
 				//find key
-				if(separator_index < 0 && key_start < 0)
+				if(separator_index < 0 && !key_set)
 				{
 					key_start = i;
+					key_set = 1;
 				}
-				else if (separator_index < 0 && key_end < 0)
+				else if (separator_index < 0 && key_set)
 				{
 					key_end = i;
 				}
@@ -1289,7 +1337,7 @@ static jdpl_keypair* parse_keypair(const char* str)
 				//end of json object
 				if(obj_indentation == 0)
 				{
-					data_end = i-1;
+					data_end = i;
 					break;
 				}
 				
@@ -1310,6 +1358,13 @@ static jdpl_keypair* parse_keypair(const char* str)
 			
 			else if(str[i] == ']')
 			{
+				//end of json array
+				if(arr_indentation == 0)
+				{
+					data_end = i;
+					break;
+				}
+				
 				arr_indentation--;
 				if(obj_indentation == 0 && arr_indentation == 0)
 				{
@@ -1317,6 +1372,15 @@ static jdpl_keypair* parse_keypair(const char* str)
 					break;
 				}
 			}
+			
+			else if(!isspace(str[i]))
+			{
+				data_end++;
+			}
+		}
+		else
+		{
+			data_end++;
 		}
 		
 	}
@@ -1328,7 +1392,7 @@ static jdpl_keypair* parse_keypair(const char* str)
 	memcpy(to_return->key, str + key_start + 1, key_len);
 	
 	//parse value
-	to_return->value = parse_value(str+data_start, data_end - data_start + 1);
+	to_return->value = parse_value(str+data_start, data_end - data_start);
 	
 	return to_return;
 }
@@ -1350,16 +1414,14 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 			if(str[i-1] == '{' || str[i-1] == ',')
 			{
 				jdpl_keypair* to_add = parse_keypair(str + i);
-				jdpl_objadd(to_add->key, to_add->value, to_return);
-				
-				//this is somewhat wasteful but we need a substr method
-				free(to_add->key);
+				jdpl_objadd_keypair(to_add, to_return);
 			}
 		}
 	}
 	
 	return to_return;
 }
+
 
 jdpl_arr* jdpl_arr_fromstr(const char* str)
 {
@@ -1373,7 +1435,7 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 	
 	size_t val_start = 0;
 	size_t val_end = 0;
-	int indentation_level = 0;
+	//int indentation_level = 0;
 	for(size_t i = 0; i < len; i++)
 	{
 		if(i > 0)
@@ -1384,8 +1446,11 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 			}
 			else if(str[i] == ']' || str[i] == ',')
 			{
-				val_end = i;
+				val_end = i-1;
 			}
+			
+			jdpl_val* to_add = parse_value(str + val_start, val_end - val_start);
+			jdpl_arradd(to_add, to_return);
 		}
 	}
 	
