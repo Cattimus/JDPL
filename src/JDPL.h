@@ -7,17 +7,106 @@
 #include <ctype.h>
 
 //TODO - parse JSON input from file
+//TODO - check that jdpl_val types can't be mismatched in any functions
+//TODO - make unit tests in driver.c
 
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
+
+
+/***********************************************************************
+ ***************FORWARD DECLARATIONS OF ALL TYPES***********************
+ ***********************************************************************/
+
+typedef struct JDPL_VALUE     jdpl_val;
+typedef struct JDPL_ARRAY     jdpl_arr;
+typedef struct JDPL_OBJECT    jdpl_obj;
+typedef struct JDPL_KEYPAIR   jdpl_keypair;
+typedef enum   JDPL_TYPE_ENUM JDPL_TYPE;
+
+/***********************************************************************
+ ***************FORWARD DECLARATIONS OF ALL FUNCTIONS*******************
+ ***********************************************************************/
+
+//new object functions
+jdpl_obj* jdpl_new_obj();
+jdpl_arr* jdpl_new_arr();
+
+//value creation functions
+jdpl_val* jdpl_valnull();
+jdpl_val* jdpl_vali(int);
+jdpl_val* jdpl_valb(int);
+jdpl_val* jdpl_valf(float);
+jdpl_val* jdpl_vald(double);
+jdpl_val* jdpl_vall(int64_t);
+jdpl_val* jdpl_vals(const char*);
+
+//copy functions
+static size_t    hash_str(const char*, size_t);
+static jdpl_obj* copy_obj(jdpl_obj*);
+static jdpl_arr* copy_arr(jdpl_arr*);
+       jdpl_val* jdpl_valobj(jdpl_obj*);
+       jdpl_val* jdpl_valobj_copy(jdpl_obj*);
+       jdpl_val* jdpl_valarr(jdpl_arr*);
+       jdpl_val* jdpl_val_copy(jdpl_val*);
+static jdpl_keypair* copy_keypair(jdpl_keypair*);
+
+//memory free functions
+void jdpl_free_obj(jdpl_obj*);
+void jdpl_free_arr(jdpl_arr*);
+void jdpl_free_val(jdpl_val*);
+void jdpl_free_keypair(jdpl_keypair*);
+
+//obj set functions
+static int  jdpl_search_obj(const char*, jdpl_obj*);
+static void jdpl_hashmap_reinsert(jdpl_obj*, jdpl_keypair*);
+static void jdpl_resize_hashmap(jdpl_obj*, size_t);
+static void jdpl_objadd_keypair(jdpl_keypair*, jdpl_obj*);
+       void jdpl_objadd(const char*, jdpl_val*, jdpl_obj*);
+       void jdpl_objadd_copy(jdpl_obj* , const char*, jdpl_val*);
+
+//obj get functions
+      int*      jdpl_objgetb(const char*, jdpl_obj*);
+const char*     jdpl_objgets(const char*, jdpl_obj*);
+      double*   jdpl_objgetnum(const char*, jdpl_obj*);
+      jdpl_val* jdpl_objget(const char*, jdpl_obj*);
+      jdpl_obj* jdpl_objgetobj(const char*, jdpl_obj*);
+      jdpl_arr* jdpl_objgetarr(const char*, jdpl_obj*);
+
+//arr set functions
+       void      jdpl_arradd(jdpl_val*, jdpl_arr*);
+       void      jdpl_arrset(jdpl_val*, unsigned int, jdpl_arr*);
+       void      jdpl_arradd_copy(jdpl_val*, jdpl_arr*);
+       void      jdpl_arrset_copy(jdpl_val*, unsigned int, jdpl_arr*);
+static jdpl_val* jdpl_search_arr(jdpl_arr*, unsigned int);
+
+//array get functions
+int*      jdpl_arrgetb(unsigned int, jdpl_arr*);
+double*   jdpl_arrgetnum(unsigned int, jdpl_arr*);
+jdpl_val* jdpl_arrget(unsigned int, jdpl_arr*);
+jdpl_obj* jdpl_arrgetobj(unsigned int, jdpl_arr*);
+jdpl_arr* jdpl_arrgetarr(unsigned int, jdpl_arr*);
+
+//to string functions
+       char* jdpl_val_tostr(jdpl_val*);
+static char* jdpl_keypair_tostr(jdpl_keypair*);
+       char* jdpl_obj_tostr(jdpl_obj*);
+       char* jdpl_arr_tostr(jdpl_arr*);
+       void  jdpl_prettify(char**, unsigned int);
+
+//parsing functions
+static jdpl_val*     parse_value(const char*, unsigned int);
+       jdpl_obj*     jdpl_obj_fromstr(const char*);
+       jdpl_arr*     jdpl_arr_fromstr(const char*);
+       jdpl_obj*     jdpl_obj_fromfile(const char*);
+       jdpl_arr*     jdpl_arr_fromfile(const char*);
+static jdpl_keypair* parse_keypair(const char*);
+
 
 typedef enum JDPL_TYPE_ENUM
 {
 	JDPL_TYPE_TEXT, JDPL_TYPE_NUM, JDPL_TYPE_BOOL, JDPL_TYPE_OBJ, JDPL_TYPE_ARR, JDPL_TYPE_NULL, JDPL_TYPE_INVALID
 }JDPL_TYPE;
-
-typedef struct JDPL_ARRAY  jdpl_arr;
-typedef struct JDPL_OBJECT jdpl_obj;
 
 typedef struct JDPL_VALUE
 {
@@ -58,6 +147,7 @@ typedef struct JDPL_OBJECT
 	size_t max_size;
 	jdpl_keypair** hashmap;
 }jdpl_obj;
+
 
 //hashing function for keys
 static size_t hash_str(const char* key, size_t size)
@@ -191,6 +281,74 @@ jdpl_val* jdpl_valnull()
 
 //TODO - jdpl_valobj_copy() jdpl_valarr_copy() (deep copy variants)
 
+static jdpl_keypair* copy_keypair(jdpl_keypair* data)
+{
+	jdpl_keypair* to_return = (jdpl_keypair*)malloc(sizeof(jdpl_keypair));
+
+	//copy key
+	to_return->key = (char*)malloc(sizeof(char) * strlen(data->key) + 1);
+	strcpy(to_return->key, data->key);
+
+	//copy data
+	to_return->value = jdpl_val_copy(data->value);
+	
+	return to_return;
+}
+
+//deep copy a jdpl_obj to a new pointer
+static jdpl_obj* copy_obj(jdpl_obj* data)
+{
+	jdpl_obj* to_return = jdpl_new_obj();
+	to_return->count = data->count;
+	to_return->max_size = data->max_size;
+
+	//resize buffer to the required size
+	to_return->hashmap = realloc(to_return->hashmap, sizeof(jdpl_keypair*) * to_return->max_size);
+	if(to_return->hashmap)
+	{
+		fprintf(stderr, "(jdpl_)copy_obj: Failed to realloc deep copy buffer\n");
+		exit(1);
+	}
+
+	//individually copy keypairs
+	for(unsigned int i = 0; i < data->max_size; i++)
+	{
+		//copy empty slot
+		if(data->hashmap[i] == NULL)
+		{
+			to_return->hashmap[i] = NULL;
+		}
+
+		//copy occupied slot
+		else
+		{
+			to_return->hashmap[i] = copy_keypair(data->hashmap[i]);
+		}
+	}
+
+	return to_return;
+}
+
+//deep copy a jdpl_arr to a new pointer
+static jdpl_arr* copy_arr(jdpl_arr* data)
+{
+	jdpl_arr* to_return = jdpl_new_arr();
+	to_return->max_size = data->max_size;
+	to_return->count = data->count;
+
+	//resize buffer to the required size
+	to_return->arr = realloc(to_return->arr, sizeof(jdpl_val*) * to_return->max_size);
+	if(!to_return->arr)
+	{
+		fprintf(stderr, "(jdpl_)copy_arr: Failed to realloc deep copy buffer\n");
+		exit(1);
+	}
+
+	memcpy(to_return->arr, data->arr, sizeof(jdpl_val*) * to_return->max_size);
+
+	return to_return;
+}
+
 //shallow copy json object
 jdpl_val* jdpl_valobj(jdpl_obj* data)
 {
@@ -199,6 +357,18 @@ jdpl_val* jdpl_valobj(jdpl_obj* data)
 	to_return->type = JDPL_TYPE_OBJ;
 	to_return->data_size = sizeof(jdpl_obj*);
 	to_return->data.obj = data;
+	
+	return to_return;
+}
+
+//deep copy json object
+jdpl_val* jdpl_valobj_copy(jdpl_obj* data)
+{
+	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
+	to_return->type = JDPL_TYPE_OBJ;
+	to_return->data_size = sizeof(jdpl_obj*);
+	to_return->data.obj = copy_obj(data);
 	
 	return to_return;
 }
@@ -215,26 +385,48 @@ jdpl_val* jdpl_valarr(jdpl_arr* data)
 	return to_return;
 }
 
+//deep copy json array
+jdpl_val* jdpl_valarr_copy(jdpl_arr* data)
+{
+	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
+
+	to_return->type = JDPL_TYPE_ARR;
+	to_return->data_size = sizeof(jdpl_arr);
+	to_return->data.arr = copy_arr(data);
+	
+	return to_return;
+}
+
 //create a deep copy of the selected value
 jdpl_val* jdpl_val_copy(jdpl_val* to_copy)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
-	
 	to_return->type = to_copy->type;
 	to_return->data_size = to_copy->data_size;
 
-	//TODO - this requires a special case for type obj and type arr
-	//currently this is a shallow copy for those objects
-	if(to_copy->type != JDPL_TYPE_TEXT)
-	{
-		to_return->data = to_copy->data;
-	}
-	
-	//text must be explicitly copied
-	else
+	//deep copy text
+	if(to_copy->type == JDPL_TYPE_TEXT)
 	{
 		to_return->data.text = (char*)malloc(to_copy->data_size);
 		memcpy(to_return->data.text, to_copy->data.text, to_copy->data_size);
+	}
+
+	//deep copy obj
+	else if(to_copy->type == JDPL_TYPE_OBJ)
+	{
+		to_return->data.obj = copy_obj(to_copy->data.obj);
+	}
+
+	//deep copy array
+	else if(to_copy->type == JDPL_TYPE_ARR)
+	{
+		to_return->data.arr = copy_arr(to_copy->data.arr);
+	}
+
+	//copy any other type (this can be handled by C)
+	else
+	{
+		to_return->data = to_copy->data;
 	}
 	return to_return;
 }
@@ -242,11 +434,6 @@ jdpl_val* jdpl_val_copy(jdpl_val* to_copy)
 /***********************************************************************
  ***********************MEMORY FREE FUNCTIONS***************************
  ***********************************************************************/
-//forward declaration (because these are recursive)
-void jdpl_free_arr(jdpl_arr*);
-void jdpl_free_obj(jdpl_obj*);
-void jdpl_free_val(jdpl_val*);
-void jdpl_free_keypair(jdpl_keypair*);
 
 //free JDPL object
 void jdpl_free_obj(jdpl_obj* to_free)
@@ -520,7 +707,7 @@ static void jdpl_objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
  **********************************************************************************************************************/
 
 
-//add a new keypair to object via shallow copy jdpl_val
+//add a new keypair to object via shallow copy value
 void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 {
 	//resize array if it's getting too full(too full = too slow)
@@ -562,7 +749,7 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 }
 
 //TODO - this must be tested for appropriate behavior
-//deep copy value
+//add a new keypair to object via deep copy value
 void jdpl_objadd_copy(jdpl_obj* to_set, const char* key, jdpl_val* val)
 {
 		//resize array if it's getting too full(too full = too slow)
@@ -752,7 +939,7 @@ static jdpl_val* jdpl_search_arr(jdpl_arr* to_search, unsigned int index)
 
 //TODO - add deep copy functions for jdpl_arradd
 
-//add a value to a jdpl array (shallow copy)
+//add a value to the jdpl array (shallow copy)
 void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 {
 	//expand key and value arrays if necessary
@@ -776,6 +963,30 @@ void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 	to_set->count++;
 }
 
+//add a value to the jdpl array (deep copy)
+void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
+{
+	//expand key and value arrays if necessary
+	if(to_set->count == to_set->max_size)
+	{
+		jdpl_val** val_temp = (jdpl_val**)realloc(to_set->arr, sizeof(jdpl_val*) * (to_set->max_size + JDPL_MEMSTEP));
+		
+		//error out if realloc is unsuccessful
+		if(val_temp == NULL)
+		{
+			fprintf(stderr, "jdpl_setobj: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
+			exit(1);
+		}
+		
+		to_set->max_size += JDPL_MEMSTEP;
+		to_set->arr = val_temp;
+	}
+	
+	//assign new value (deep copy)
+	to_set->arr[to_set->count] = jdpl_val_copy(val);
+	to_set->count++;
+}
+
 //overwrite value at index with new value (shallow copy)
 void jdpl_arrset(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 {
@@ -787,6 +998,19 @@ void jdpl_arrset(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 	
 	jdpl_free_val(to_set->arr[index]);
 	to_set->arr[index] = val;
+}
+
+//overwrite value at index with new value (deep copy)
+void jdpl_arrset_copy(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
+{
+	//index is out of bounds
+	if(to_set->count < index)
+	{
+		return;
+	}
+	
+	jdpl_free_val(to_set->arr[index]);
+	to_set->arr[index] = jdpl_val_copy(val);
 }
 
 /***********************************************************************
@@ -874,9 +1098,6 @@ jdpl_arr* jdpl_arrgetarr(unsigned int index, jdpl_arr* to_search)
 /*************************************************************************
  ***************************TO_STR FUNCTIONS******************************
  *************************************************************************/
-char* jdpl_val_tostr(jdpl_val*);
-char* jdpl_obj_tostr(jdpl_obj*);
-char* jdpl_arr_tostr(jdpl_arr*);
 
 //convert value to string
 char* jdpl_val_tostr(jdpl_val* to_convert)
@@ -1235,8 +1456,6 @@ void jdpl_prettify(char** to_prettify, unsigned int indent_size)
 /*************************************************************************
  ****************************PARSING FUNCTIONS****************************
  *************************************************************************/
-jdpl_obj* jdpl_obj_fromstr(const char* str);
-jdpl_arr* jdpl_arr_fromstr(const char* str);
 
 //parse string and convert to jdpl_val
 static jdpl_val* parse_value(const char* str, unsigned int len)
