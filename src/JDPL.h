@@ -13,7 +13,6 @@
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
 
-
 /***********************************************************************
  ***************FORWARD DECLARATIONS OF ALL TYPES***********************
  ***********************************************************************/
@@ -1183,7 +1182,7 @@ static char* keypair_tostr(jdpl_keypair* to_convert)
 	char* value_str = jdpl_val_tostr(to_convert->value);
 	size_t key_size = strlen(to_convert->key);
 	size_t value_size = strlen(value_str);
-	int str_size = key_size + value_size + 5;
+	int str_size = key_size + value_size + 4;
 	
 	char* to_return = (char*)malloc(str_size);
 	
@@ -1191,8 +1190,8 @@ static char* keypair_tostr(jdpl_keypair* to_convert)
 	memcpy(to_return + 1, to_convert->key, key_size);
 	to_return[key_size + 1] = '"';
 	to_return[key_size + 2] = ':';
-	to_return[key_size + 3] = ' ';
-	memcpy(to_return+key_size+4, value_str, value_size);
+	//to_return[key_size + 3] = ' '; <- this should be done in jdpl_prettify
+	memcpy(to_return+key_size+3, value_str, value_size);
 	to_return[str_size - 1] = '\0';
 	
 	free(value_str);
@@ -1310,6 +1309,8 @@ char* jdpl_arr_tostr(jdpl_arr* to_convert)
 	
 	return to_return;
 }
+
+//TODO - insert space after ':' character
 
 //takes condensed input and prettifies it to human-readable json
 //this is arcane magic, god help me if I ever need to touch it again
