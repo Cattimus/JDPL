@@ -58,10 +58,10 @@ void jdpl_free_val(jdpl_val*);
 void jdpl_free_keypair(jdpl_keypair*);
 
 //obj set functions
-static int  jdpl_search_obj(const char*, jdpl_obj*);
-static void jdpl_hashmap_reinsert(jdpl_obj*, jdpl_keypair*);
-static void jdpl_resize_hashmap(jdpl_obj*, size_t);
-static void jdpl_objadd_keypair(jdpl_keypair*, jdpl_obj*);
+static int  search_obj(const char*, jdpl_obj*);
+static void hashmap_reinsert(jdpl_obj*, jdpl_keypair*);
+static void resize_hashmap(jdpl_obj*, size_t);
+static void objadd_keypair(jdpl_keypair*, jdpl_obj*);
        void jdpl_objadd(const char*, jdpl_val*, jdpl_obj*);
        void jdpl_objadd_copy(jdpl_obj* , const char*, jdpl_val*);
 
@@ -78,7 +78,7 @@ const char*     jdpl_objgets(const char*, jdpl_obj*);
        void      jdpl_arrset(jdpl_val*, unsigned int, jdpl_arr*);
        void      jdpl_arradd_copy(jdpl_val*, jdpl_arr*);
        void      jdpl_arrset_copy(jdpl_val*, unsigned int, jdpl_arr*);
-static jdpl_val* jdpl_search_arr(jdpl_arr*, unsigned int);
+static jdpl_val* search_arr(jdpl_arr*, unsigned int);
 
 //array get functions
 int*      jdpl_arrgetb(unsigned int, jdpl_arr*);
@@ -89,7 +89,7 @@ jdpl_arr* jdpl_arrgetarr(unsigned int, jdpl_arr*);
 
 //to string functions
        char* jdpl_val_tostr(jdpl_val*);
-static char* jdpl_keypair_tostr(jdpl_keypair*);
+static char* keypair_tostr(jdpl_keypair*);
        char* jdpl_obj_tostr(jdpl_obj*);
        char* jdpl_arr_tostr(jdpl_arr*);
        void  jdpl_prettify(char**, unsigned int);
@@ -278,8 +278,6 @@ jdpl_val* jdpl_valnull()
 	
 	return to_return;
 }
-
-//TODO - jdpl_valobj_copy() jdpl_valarr_copy() (deep copy variants)
 
 static jdpl_keypair* copy_keypair(jdpl_keypair* data)
 {
@@ -554,7 +552,7 @@ void jdpl_free_keypair(jdpl_keypair* to_free)
  ***********************************************************************/
 
 //search a JSON object for a particular key. returns NULL if not found.
-static int jdpl_search_obj(const char* key, jdpl_obj* to_search)
+static int search_obj(const char* key, jdpl_obj* to_search)
 {
 	size_t index = hash_str(key, to_search->max_size);
 	size_t orig_val = index;
@@ -594,7 +592,7 @@ static int jdpl_search_obj(const char* key, jdpl_obj* to_search)
 }
 
 //special helper function to reinsert keypairs upon array resize
-static void jdpl_hashmap_reinsert(jdpl_obj* dest, jdpl_keypair* val)
+static void hashmap_reinsert(jdpl_obj* dest, jdpl_keypair* val)
 {
 	unsigned int key_val = hash_str(val->key, dest->max_size);
 	while(key_val < dest->max_size)
@@ -619,12 +617,12 @@ static void jdpl_hashmap_reinsert(jdpl_obj* dest, jdpl_keypair* val)
 }
 
 //function for resizing the hashmap, theoretically should work in both directions
-static void jdpl_resize_hashmap(jdpl_obj* src, size_t new_size)
+static void resize_hashmap(jdpl_obj* src, size_t new_size)
 {
 	//this is an error condition because the items cannot fit in the new array
 	if(new_size <= src->count)
 	{
-		fprintf(stderr, "jdpl_resize_hashmap: new size is smaller than current item count. Resize aborted.\n");
+		fprintf(stderr, "(jdpl_)resize_hashmap: new size is smaller than current item count. Resize aborted.\n");
 		return;
 	}
 
@@ -660,7 +658,7 @@ static void jdpl_resize_hashmap(jdpl_obj* src, size_t new_size)
 	//reinsert items
 	for(int i = 0; i < arr_count; i++)
 	{
-		jdpl_hashmap_reinsert(src, temp_array[i]);
+		hashmap_reinsert(src, temp_array[i]);
 	}
 
 	//free the temporary storage array
@@ -668,21 +666,21 @@ static void jdpl_resize_hashmap(jdpl_obj* src, size_t new_size)
 }
 
 //helper function to add a keypair that has been parsed to a jdpl_obj
-static void jdpl_objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
+static void objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
 {
 	//resize array if it's getting too full(too full = too slow)
 	if(to_set->count >= to_set->max_size - to_set->max_size / 4)
 	{
-		jdpl_resize_hashmap(to_set, to_set->max_size * 1.5);
+		resize_hashmap(to_set, to_set->max_size * 1.5);
 	}
 	
 	//search for existing keys
-	int index = jdpl_search_obj(to_add->key, to_set);
+	int index = search_obj(to_add->key, to_set);
 	
 	//no room in object for new index (should never happen)
 	if(index == -1)
 	{
-		fprintf(stderr, "jdpl_objadd: resizing error - not enough room in hashmap for new object with key %s\n", to_add->key);
+		fprintf(stderr, "(jdpl_)objadd_keypair: resizing error - not enough room in hashmap for new object with key %s\n", to_add->key);
 		return;
 	}
 	
@@ -699,24 +697,16 @@ static void jdpl_objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
 	
 }
 
-/**********************************************************************************************************************
-   NOTE - Many of these functions work assuming you're creating a new value. Using an existing value may lead to errors
-          because of the shallow copy.
- **********************************************************************************************************************
-   TODO - Add additional (copy) functions to deep copy values.
- **********************************************************************************************************************/
-
-
 //add a new keypair to object via shallow copy value
 void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 {
 	//resize array if it's getting too full(too full = too slow)
 	if(to_set->count >= to_set->max_size - to_set->max_size / 4)
 	{
-		jdpl_resize_hashmap(to_set, to_set->max_size * 1.5);
+		resize_hashmap(to_set, to_set->max_size * 1.5);
 	}
 	
-	int index = jdpl_search_obj(key, to_set);
+	int index = search_obj(key, to_set);
 	
 	//no room in object for new index (should never happen)
 	if(index == -1)
@@ -755,15 +745,15 @@ void jdpl_objadd_copy(jdpl_obj* to_set, const char* key, jdpl_val* val)
 		//resize array if it's getting too full(too full = too slow)
 	if(to_set->count >= to_set->max_size - to_set->max_size / 4)
 	{
-		jdpl_resize_hashmap(to_set, to_set->max_size * 1.5);
+		resize_hashmap(to_set, to_set->max_size * 1.5);
 	}
 	
-	int index = jdpl_search_obj(key, to_set);
+	int index = search_obj(key, to_set);
 	
 	//no room in object for new index (should never happen)
 	if(index == -1)
 	{
-		fprintf(stderr, "jdpl_objadd: resizing error - not enough room in hashmap for new object with key %s\n", key);
+		fprintf(stderr, "jdpl_objadd_copy: resizing error - not enough room in hashmap for new object with key %s\n", key);
 		return;
 	}
 	
@@ -797,7 +787,7 @@ void jdpl_objadd_copy(jdpl_obj* to_set, const char* key, jdpl_val* val)
 //generic search for jdpl_obj
 jdpl_val* jdpl_objget(const char* key, jdpl_obj* to_search)
 {
-	int index = jdpl_search_obj(key, to_search);
+	int index = search_obj(key, to_search);
 	if(index < 0)
 	{
 		return NULL;
@@ -809,7 +799,7 @@ jdpl_val* jdpl_objget(const char* key, jdpl_obj* to_search)
 //search for text(string)
 const char* jdpl_objgets(const char* key, jdpl_obj* to_search)
 {
-	int index = jdpl_search_obj(key, to_search);
+	int index = search_obj(key, to_search);
 	if(index < 0)
 	{
 		return NULL;
@@ -832,7 +822,7 @@ const char* jdpl_objgets(const char* key, jdpl_obj* to_search)
 //search for number (always double)
 double* jdpl_objgetnum(const char* key, jdpl_obj* to_search)
 {
-	int index = jdpl_search_obj(key, to_search);
+	int index = search_obj(key, to_search);
 	if(index < 0)
 	{
 		return NULL;
@@ -855,7 +845,7 @@ double* jdpl_objgetnum(const char* key, jdpl_obj* to_search)
 //search for bool(boolean) 1 true 0 false -1 error
 int* jdpl_objgetb(const char* key, jdpl_obj* to_search)
 {
-	int index = jdpl_search_obj(key, to_search);
+	int index = search_obj(key, to_search);
 	if(index < 0)
 	{
 		return NULL;
@@ -878,7 +868,7 @@ int* jdpl_objgetb(const char* key, jdpl_obj* to_search)
 //search for obj(jdpl_obj)
 jdpl_obj* jdpl_objgetobj(const char* key, jdpl_obj* to_search)
 {
-	int index = jdpl_search_obj(key, to_search);
+	int index = search_obj(key, to_search);
 	if(index < 0)
 	{
 		return NULL;
@@ -901,7 +891,7 @@ jdpl_obj* jdpl_objgetobj(const char* key, jdpl_obj* to_search)
 //search for arr(jdpl_arr)
 jdpl_arr* jdpl_objgetarr(const char* key, jdpl_obj* to_search)
 {
-	int index = jdpl_search_obj(key, to_search);
+	int index = search_obj(key, to_search);
 	if(index < 0)
 	{
 		return NULL;
@@ -927,7 +917,7 @@ jdpl_arr* jdpl_objgetarr(const char* key, jdpl_obj* to_search)
  ***********************************************************************/
 
 //search a JSON array for a particular index. return NULL if out of bounds.
-static jdpl_val* jdpl_search_arr(jdpl_arr* to_search, unsigned int index)
+static jdpl_val* search_arr(jdpl_arr* to_search, unsigned int index)
 {
 	if(index < to_search->count)
 	{
@@ -938,7 +928,6 @@ static jdpl_val* jdpl_search_arr(jdpl_arr* to_search, unsigned int index)
 }
 
 //TODO - add deep copy functions for jdpl_arradd
-
 //add a value to the jdpl array (shallow copy)
 void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 {
@@ -950,7 +939,7 @@ void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 		//error out if realloc is unsuccessful
 		if(val_temp == NULL)
 		{
-			fprintf(stderr, "jdpl_setobj: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
+			fprintf(stderr, "jdpl_arradd: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
 			exit(1);
 		}
 		
@@ -974,7 +963,7 @@ void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
 		//error out if realloc is unsuccessful
 		if(val_temp == NULL)
 		{
-			fprintf(stderr, "jdpl_setobj: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
+			fprintf(stderr, "jdpl_arradd_copy: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
 			exit(1);
 		}
 		
@@ -1020,13 +1009,13 @@ void jdpl_arrset_copy(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 //generic search, gets value at index
 jdpl_val* jdpl_arrget(unsigned int index, jdpl_arr* to_search)
 {
-	return jdpl_search_arr(to_search, index);
+	return search_arr(to_search, index);
 }
 
 //return value at index as a double(number)
 double* jdpl_arrgetnum(unsigned int index, jdpl_arr* to_search)
 {
-	jdpl_val* to_return = jdpl_search_arr(to_search, index);
+	jdpl_val* to_return = search_arr(to_search, index);
 	
 	if(to_return == NULL)
 	{
@@ -1044,7 +1033,7 @@ double* jdpl_arrgetnum(unsigned int index, jdpl_arr* to_search)
 //return value at index as an int(boolean)
 int* jdpl_arrgetb(unsigned int index, jdpl_arr* to_search)
 {
-	jdpl_val* to_return = jdpl_search_arr(to_search, index);
+	jdpl_val* to_return = search_arr(to_search, index);
 	
 	if(to_return == NULL)
 	{
@@ -1062,7 +1051,7 @@ int* jdpl_arrgetb(unsigned int index, jdpl_arr* to_search)
 //return value at index as an obj reference(jdpl_obj*)
 jdpl_obj* jdpl_arrgetobj(unsigned int index, jdpl_arr* to_search)
 {
-	jdpl_val* to_return = jdpl_search_arr(to_search, index);
+	jdpl_val* to_return = search_arr(to_search, index);
 	
 	if(to_return == NULL)
 	{
@@ -1080,7 +1069,7 @@ jdpl_obj* jdpl_arrgetobj(unsigned int index, jdpl_arr* to_search)
 //return value at index as an arr reference(jdpl_arr*)
 jdpl_arr* jdpl_arrgetarr(unsigned int index, jdpl_arr* to_search)
 {
-	jdpl_val* to_return = jdpl_search_arr(to_search, index);
+	jdpl_val* to_return = search_arr(to_search, index);
 	
 	if(to_return == NULL)
 	{
@@ -1189,7 +1178,7 @@ char* jdpl_val_tostr(jdpl_val* to_convert)
 }
 
 //convert keypair to string
-static char* jdpl_keypair_tostr(jdpl_keypair* to_convert)
+static char* keypair_tostr(jdpl_keypair* to_convert)
 {
 	char* value_str = jdpl_val_tostr(to_convert->value);
 	size_t key_size = strlen(to_convert->key);
@@ -1238,7 +1227,7 @@ char* jdpl_obj_tostr(jdpl_obj* to_convert)
 			expand_val -= 1;
 		}
 		
-		char* keypair_str = jdpl_keypair_tostr(keypair); //raw keypair string
+		char* keypair_str = keypair_tostr(keypair); //raw keypair string
 		size_t chunk_len = strlen(keypair_str); //size of keypair string
 		int starting_index = str_index;
 		str_size += chunk_len + expand_val;
@@ -1746,7 +1735,7 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 			if(str[i-1] == '{' || str[i-1] == ',')
 			{
 				jdpl_keypair* to_add = parse_keypair(str + i);
-				jdpl_objadd_keypair(to_add, to_return);
+				objadd_keypair(to_add, to_return);
 			}
 		}
 	}
