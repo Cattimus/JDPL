@@ -8,7 +8,8 @@
 
 //TODO - parse JSON input from file
 //TODO - check that jdpl_val types can't be mismatched in any functions
-//TODO - make unit tests in driver.c
+//TODO - add failure mode for obj and arr parsing
+//TODO - possible bug where a recursive jdpl_obj or jdpl_arr can be created
 
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
@@ -151,6 +152,12 @@ typedef struct JDPL_OBJECT
 //hashing function for keys
 static size_t hash_str(const char* key, size_t size)
 {
+	//this is inefficient but at least shouldn't crash
+	if(key == NULL)
+	{
+		return 0;
+	}
+	
 	size_t hash_value = 0;
 	size_t key_size = strlen(key);
 	for(size_t i = 0; i < key_size; i++)
@@ -221,6 +228,11 @@ jdpl_val* jdpl_vall(int64_t data)
 //create value from string
 jdpl_val* jdpl_vals(const char* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
 	to_return->type = JDPL_TYPE_TEXT;
@@ -280,6 +292,11 @@ jdpl_val* jdpl_valnull()
 
 static jdpl_keypair* copy_keypair(jdpl_keypair* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_keypair* to_return = (jdpl_keypair*)malloc(sizeof(jdpl_keypair));
 
 	//copy key
@@ -295,13 +312,18 @@ static jdpl_keypair* copy_keypair(jdpl_keypair* data)
 //deep copy a jdpl_obj to a new pointer
 static jdpl_obj* copy_obj(jdpl_obj* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_obj* to_return = jdpl_new_obj();
 	to_return->count = data->count;
 	to_return->max_size = data->max_size;
 
 	//resize buffer to the required size
 	to_return->hashmap = realloc(to_return->hashmap, sizeof(jdpl_keypair*) * to_return->max_size);
-	if(to_return->hashmap)
+	if(!to_return->hashmap)
 	{
 		fprintf(stderr, "(jdpl_)copy_obj: Failed to realloc deep copy buffer\n");
 		exit(1);
@@ -310,17 +332,7 @@ static jdpl_obj* copy_obj(jdpl_obj* data)
 	//individually copy keypairs
 	for(unsigned int i = 0; i < data->max_size; i++)
 	{
-		//copy empty slot
-		if(data->hashmap[i] == NULL)
-		{
-			to_return->hashmap[i] = NULL;
-		}
-
-		//copy occupied slot
-		else
-		{
-			to_return->hashmap[i] = copy_keypair(data->hashmap[i]);
-		}
+		to_return->hashmap[i] = copy_keypair(data->hashmap[i]);
 	}
 
 	return to_return;
@@ -329,6 +341,11 @@ static jdpl_obj* copy_obj(jdpl_obj* data)
 //deep copy a jdpl_arr to a new pointer
 static jdpl_arr* copy_arr(jdpl_arr* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_arr* to_return = jdpl_new_arr();
 	to_return->max_size = data->max_size;
 	to_return->count = data->count;
@@ -341,7 +358,10 @@ static jdpl_arr* copy_arr(jdpl_arr* data)
 		exit(1);
 	}
 
-	memcpy(to_return->arr, data->arr, sizeof(jdpl_val*) * to_return->max_size);
+	for(unsigned int i = 0; i < data->max_size; i++)
+	{
+		to_return->arr[i] = jdpl_val_copy(data->arr[i]);
+	}
 
 	return to_return;
 }
@@ -349,6 +369,11 @@ static jdpl_arr* copy_arr(jdpl_arr* data)
 //shallow copy json object
 jdpl_val* jdpl_valobj(jdpl_obj* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
 	to_return->type = JDPL_TYPE_OBJ;
@@ -361,6 +386,11 @@ jdpl_val* jdpl_valobj(jdpl_obj* data)
 //deep copy json object
 jdpl_val* jdpl_valobj_copy(jdpl_obj* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
 	to_return->type = JDPL_TYPE_OBJ;
@@ -373,6 +403,11 @@ jdpl_val* jdpl_valobj_copy(jdpl_obj* data)
 //shallow copy json array
 jdpl_val* jdpl_valarr(jdpl_arr* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
 	to_return->type = JDPL_TYPE_ARR;
@@ -385,6 +420,11 @@ jdpl_val* jdpl_valarr(jdpl_arr* data)
 //deep copy json array
 jdpl_val* jdpl_valarr_copy(jdpl_arr* data)
 {
+	if(data == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
 	to_return->type = JDPL_TYPE_ARR;
@@ -397,6 +437,12 @@ jdpl_val* jdpl_valarr_copy(jdpl_arr* data)
 //create a deep copy of the selected value
 jdpl_val* jdpl_val_copy(jdpl_val* to_copy)
 {
+	//this makes copying easier and less prone to errors
+	if(to_copy == NULL)
+	{
+		return NULL;
+	}
+	
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 	to_return->type = to_copy->type;
 	to_return->data_size = to_copy->data_size;
@@ -564,10 +610,14 @@ static int search_obj(const char* key, jdpl_obj* to_search)
 		}
 		else
 		{
-			//occupied slot is found and will be overwritten
-			if(strcmp(key, to_search->hashmap[index]->key) == 0)
+			//check to make sure we're not wasting time strcmp-ing
+			if(key[0] == to_search->hashmap[index]->key[0])
 			{
-				return index;
+				//occupied slot is found and will be overwritten
+				if(strcmp(key, to_search->hashmap[index]->key) == 0)
+				{
+					return index;
+				}
 			}
 		}
 		
@@ -737,7 +787,6 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	to_set->count += 1;
 }
 
-//TODO - this must be tested for appropriate behavior
 //add a new keypair to object via deep copy value
 void jdpl_objadd_copy(jdpl_obj* to_set, const char* key, jdpl_val* val)
 {
@@ -926,7 +975,6 @@ static jdpl_val* search_arr(jdpl_arr* to_search, unsigned int index)
 	return NULL;
 }
 
-//TODO - add deep copy functions for jdpl_arradd
 //add a value to the jdpl array (shallow copy)
 void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 {
