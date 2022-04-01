@@ -1773,8 +1773,12 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 			}
 
 			//convert values
-			jdpl_val* to_add = parse_value(str + val_start, val_end - val_start);
-			jdpl_arradd(to_add, to_return);
+			if(val_end != 0)
+			{
+				jdpl_val* to_add = parse_value(str + val_start, val_end - val_start);
+				jdpl_arradd(to_add, to_return);
+				val_end = 0;
+			}
 		}
 	}
 	
