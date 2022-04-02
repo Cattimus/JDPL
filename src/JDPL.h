@@ -8,7 +8,6 @@
 
 //TODO - parse JSON input from file
 //TODO - check that jdpl_val types can't be mismatched in any functions
-//TODO - add failure mode for obj and arr parsing
 //TODO - possible bug where a recursive jdpl_obj or jdpl_arr can be created
 
 #define JDPL_MEMSTEP 1024
@@ -1821,7 +1820,7 @@ static jdpl_val* parse_value(const char* str, unsigned int len)
 	{
 		if(len < 5 + whitespace_counter)
 		{
-			return jdpl_valnull();
+			return NULL;
 		}
 		
 		const char* cur = str+whitespace_counter;
@@ -1937,18 +1936,25 @@ static jdpl_keypair* parse_keypair(const char* str)
 
 //parse text to create an object
 jdpl_obj* jdpl_obj_fromstr(const char* str)
-{
+{	
+	jdpl_obj* to_return = jdpl_new_obj();
+
 	if(str == NULL)
 	{
-		return NULL;
+		return to_return;
 	}
 	
-	jdpl_obj* to_return = jdpl_new_obj();
-	
 	size_t len = strlen(str);
+
+	//special case for empty string
+	if(len < 1)
+	{
+		return to_return;
+	}
+	
 	if(str[0] != '{')
 	{
-		return NULL;
+		return to_return;
 	}
 
 	//extract all keypairs
@@ -1979,18 +1985,25 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 
 //parse text to create an array
 jdpl_arr* jdpl_arr_fromstr(const char* str)
-{
+{	
+	jdpl_arr* to_return = jdpl_new_arr();
+
 	if(str == NULL)
 	{
-		return NULL;
+		return to_return;
 	}
 	
-	jdpl_arr* to_return = jdpl_new_arr();
-	
 	size_t len = strlen(str);
+	
+    //special case for empty string
+	if(len < 1)
+	{
+		return to_return;
+	}
+	
 	if(str[0] != '[')
 	{
-		return NULL;
+		return to_return;
 	}
 	
 	size_t val_start = 0;

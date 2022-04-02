@@ -31,6 +31,42 @@ int obj_malformed_input();
 //expected result: "[]"
 int arr_malformed_input();
 
+//expected result: "{}"
+int empty_obj();
+
+//expected result: "[]"
+int empty_arr();
+
+//expected result: "{}"
+int empty_str_obj();
+
+//expected result: "[]"
+int empty_str_arr();
+
+//expected result: "{}"
+int no_start_obj();
+
+//expected result: "[]"
+int no_start_arr();
+
+//expected result: "{}"
+int no_end_obj();
+
+//expected result: "[]"
+int no_end_arr();
+
+//expected result: "{}"
+int mismatched_obj();
+
+//expected result: "[]"
+int mismatched_arr();
+
+/*
+  - numbers with strings in the middle
+  - nested objects
+  - double nested objects
+*/
+
 void run_unit_tests();
 
 int main()
@@ -39,6 +75,9 @@ int main()
     return 0;
 }
 
+/*
+  Run all unit tests
+*/
 void run_unit_tests()
 {
 	int pass_counter = 0;
@@ -51,8 +90,275 @@ void run_unit_tests()
 	pass_counter += arr_deep_copy();
 	pass_counter += obj_malformed_input();
 	pass_counter += arr_malformed_input();
+	pass_counter += empty_obj();
+	pass_counter += empty_arr();
+	pass_counter += empty_str_obj();
+	pass_counter += empty_str_arr();
+	pass_counter += no_start_obj();
+	pass_counter += no_start_arr();
+	pass_counter += no_end_obj();
+	pass_counter += no_end_arr();
+	pass_counter += mismatched_obj();
+	pass_counter += mismatched_arr();
 
 	printf("\nPassed tests: %d/%d\n", pass_counter, tests_run);
+}
+
+/*
+  checks that a mismatched string "{]" works
+*/
+int mismatched_obj()
+{
+	tests_run++;
+	const char* obj_str_result = "{}";
+	jdpl_obj* test = jdpl_obj_fromstr("{]");
+
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+	int result = strcmp(obj_str_result, str) == 0;
+
+	printf("mismatched input ({]) object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", obj_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  checks that a mismatched string "[}" works
+*/
+int mismatched_arr()
+{
+	tests_run++;
+	const char* arr_str_result = "[]";
+	jdpl_arr* test = jdpl_arr_fromstr("[}");
+
+	char* str = jdpl_arr_tostr(test);
+	jdpl_free_arr(test);
+	int result = strcmp(arr_str_result, str) == 0;
+
+	printf("mismatched input ([}) object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", arr_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+
+/*
+  checks that a no start string "}" works
+*/
+int no_end_arr()
+{
+	tests_run++;
+	const char* obj_str_result = "{}";
+	jdpl_obj* test = jdpl_obj_fromstr("[");
+
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+	int result = strcmp(obj_str_result, str) == 0;
+
+	printf("no end string ([) array input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", obj_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  checks that a no start string "}" works
+*/
+int no_end_obj()
+{
+	tests_run++;
+	const char* obj_str_result = "{}";
+	jdpl_obj* test = jdpl_obj_fromstr("{");
+
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+	int result = strcmp(obj_str_result, str) == 0;
+
+	printf("no end string ({) object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", obj_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  checks that a no start string "}" works
+*/
+int no_start_obj()
+{
+	tests_run++;
+	const char* obj_str_result = "{}";
+	jdpl_obj* test = jdpl_obj_fromstr("}");
+
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+	int result = strcmp(obj_str_result, str) == 0;
+
+	printf("no start (}) string object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", obj_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  checks that a no start string "]" works
+*/
+int no_start_arr()
+{
+	tests_run++;
+	const char* arr_str_result = "[]";
+	jdpl_arr* test = jdpl_arr_fromstr("]");
+
+	char* str = jdpl_arr_tostr(test);
+	jdpl_free_arr(test);
+
+	int result = strcmp(arr_str_result, str) == 0;
+
+	printf("no start (]) string array input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", arr_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  Checks that an empty string "" works properly
+*/
+int empty_str_obj()
+{
+	tests_run++;
+	const char* obj_str_result = "{}";
+	jdpl_obj* test = jdpl_obj_fromstr("");
+
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+	int result = strcmp(obj_str_result, str) == 0;
+
+	printf("empty string object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", obj_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  Checks that an empty string "" works properly
+*/
+int empty_str_arr()
+{
+	tests_run++;
+	const char* arr_str_result = "[]";
+	jdpl_arr* test = jdpl_arr_fromstr("");
+
+	char* str = jdpl_arr_tostr(test);
+	jdpl_free_arr(test);
+
+	int result = strcmp(arr_str_result, str) == 0;
+
+	printf("empty string array input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", arr_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+/*
+  Checks that an empty string "{}" works properly
+*/
+int empty_obj()
+{
+	tests_run++;
+	const char* obj_str_result = "{}";
+	jdpl_obj* test = jdpl_obj_fromstr("{}");
+
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+
+	int result = strcmp(obj_str_result, str) == 0;
+
+	printf("empty object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", obj_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+}
+
+
+/*
+  checks that an empty string "[]" works properly
+*/
+int empty_arr()
+{
+	tests_run++;
+	const char* arr_str_result = "[]";
+	jdpl_arr* test = jdpl_arr_fromstr("[]");
+
+	char* str = jdpl_arr_tostr(test);
+	jdpl_free_arr(test);
+
+	int result = strcmp(arr_str_result, str) == 0;
+
+	printf("empty object input parsing: %s\n", result ? "pass" : "fail");
+
+	if(PRINT_FAILED && (!result))
+	{
+		printf("Expected result: %s\n", arr_str_result);
+		printf("Actual result: %s\n\n", str);
+	}
+
+	free(str);
+	return result;
+
 }
 
 /*
@@ -79,7 +385,6 @@ int arr_malformed_input()
 	}
 
 	free(str);
-
 	return result;
 }
 
@@ -273,7 +578,6 @@ int obj_deep_copy()
 
 	jdpl_free_obj(left);
 	jdpl_free_obj(right);
-
 	return result;
 }
 
@@ -309,6 +613,5 @@ int arr_deep_copy()
 
 	jdpl_free_arr(left);
 	jdpl_free_arr(right);
-
 	return result;
 }
