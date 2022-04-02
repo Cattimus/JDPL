@@ -70,7 +70,7 @@ int arr_malformed_input()
 
     int result = strcmp(arr_str_result, str) == 0;
 
-	printf("Array parsing: %s\n", result ? "pass" : "fail");
+	printf("Array malformed input parsing: %s\n", result ? "pass" : "fail");
 
 	if(PRINT_FAILED && (!result))
 	{
@@ -97,7 +97,7 @@ int obj_malformed_input()
 
 	int result = strcmp(obj_str_result, str) == 0;
 
-	printf("Object parsing: %s\n", result ? "pass" : "fail");
+	printf("Object malformed input parsing: %s\n", result ? "pass" : "fail");
 
 	if(PRINT_FAILED && (!result))
 	{
