@@ -7,8 +7,6 @@
 #include <ctype.h>
 
 //TODO - parse JSON input from file
-//TODO - check that jdpl_val types can't be mismatched in any functions
-//TODO - possible bug where a recursive jdpl_obj or jdpl_arr can be created
 
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
@@ -747,10 +745,19 @@ static void objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
 
 //add a new keypair to object via shallow copy value
 void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
-{
+{	
 	if(to_set == NULL || key == NULL || val == NULL)
 	{
 		return;
+	}
+
+	//check for a recursive addition
+	if(val->type == JDPL_TYPE_OBJ)
+	{
+		if(val->data.obj == to_set)
+		{
+			return;
+		}
 	}
 	
 	//resize array if it's getting too full(too full = too slow)
@@ -797,6 +804,15 @@ void jdpl_objadd_copy(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	if(to_set == NULL || key == NULL || val == NULL)
 	{
 		return;
+	}
+
+	//check for a recursive addition
+	if(val->type == JDPL_TYPE_OBJ)
+	{
+		if(val->data.obj == to_set)
+		{
+			return;
+		}
 	}
 	
     //resize array if it's getting too full(too full = too slow)
@@ -1021,6 +1037,15 @@ void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 	{
 		return;
 	}
+
+	//check for a recursive addition
+	if(val->type == JDPL_TYPE_ARR)
+	{
+		if(val->data.arr == to_set)
+		{
+			return;
+		}
+	}
 	
 	//expand key and value arrays if necessary
 	if(to_set->count == to_set->max_size)
@@ -1049,6 +1074,15 @@ void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
 	if(val == NULL || to_set == NULL)
 	{
 		return;
+	}
+
+	//check for a recursive addition
+	if(val->type == JDPL_TYPE_ARR)
+	{
+		if(val->data.arr == to_set)
+		{
+			return;
+		}
 	}
 	
 	//expand key and value arrays if necessary
@@ -1079,6 +1113,15 @@ void jdpl_arrset(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 	{
 		return;
 	}
+
+	//check for a recursive addition
+	if(val->type == JDPL_TYPE_ARR)
+	{
+		if(val->data.arr == to_set)
+		{
+			return;
+		}
+	}
 	
 	//index is out of bounds
 	if(to_set->count < index)
@@ -1096,6 +1139,15 @@ void jdpl_arrset_copy(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 	if(val == NULL || to_set == NULL)
 	{
 		return;
+	}
+
+	//check for a recursive addition
+	if(val->type == JDPL_TYPE_ARR)
+	{
+		if(val->data.arr == to_set)
+		{
+			return;
+		}
 	}
 	
 	//index is out of bounds
