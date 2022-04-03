@@ -1261,7 +1261,7 @@ char* jdpl_val_tostr(jdpl_val* to_convert)
 			}
 			else
 			{
-				sprintf(to_return, "%lf", num);
+				sprintf(to_return, "%f", num);
 			}
 			break;
 		}
@@ -1791,7 +1791,7 @@ static jdpl_val* parse_value(const char* str, unsigned int len)
 		{
 			if(!isspace(str[i]))
 			{
-				if(str[i] != ',')
+				if(str[i] != ',' && str[i] != '}' && str[i] != ']')
 				{
 					return NULL;
 				}
@@ -1938,6 +1938,9 @@ static jdpl_keypair* parse_keypair(const char* str)
 jdpl_obj* jdpl_obj_fromstr(const char* str)
 {	
 	jdpl_obj* to_return = jdpl_new_obj();
+	int in_nested_obj = 0;
+	int in_nested_arr = 0;
+	int in_quote = 0;
 
 	if(str == NULL)
 	{
@@ -1960,9 +1963,35 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 	//extract all keypairs
 	for(size_t i = 0; i < len; i++)
 	{
+		
 		if(i > 0)
 		{
-			if(str[i-1] == '{' || str[i-1] == ',')
+			if(str[i] == '"' && str[i-1] != '\\')
+			{
+				in_quote = !in_quote;
+			}
+
+			if(!in_quote)
+			{
+				if(str[i] == '{')
+				{
+					in_nested_obj++;
+				}
+				else if(str[i] == '}')
+				{
+					in_nested_obj--;
+				}
+				else if(str[i] == '[')
+				{
+					in_nested_arr++;
+				}
+				else if(str[i] == ']')
+				{
+					in_nested_arr--;
+				}	
+			}
+			
+			if((str[i-1] == ',' || i == 1) && ((in_nested_obj + in_nested_arr) == 0))
 			{
 				jdpl_keypair* to_add = parse_keypair(str + i);
 				if(to_add)
@@ -1978,6 +2007,14 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 				}
 			}
 		}
+	}
+
+	in_nested_obj++;
+	if((in_nested_obj + in_nested_arr) > 0)
+	{
+		jdpl_free_obj(to_return);
+		to_return = jdpl_new_obj();
+		return to_return;
 	}
 	
 	return to_return;
@@ -2008,13 +2045,41 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 	
 	size_t val_start = 0;
 	int val_captured = 0;
+	int in_quote = 0;
+	int in_nested_obj = 0;
+	int in_nested_arr = 0;
 	//int indentation_level = 0;
 	for(size_t i = 0; i < len; i++)
-	{
+	{	
 		if(i > 0)
 		{
+			if(str[i] == '"' && str[i-1] != '\\')
+			{
+				in_quote = !in_quote;
+			}
+
+			if(!in_quote)
+			{
+				if(str[i] == '{')
+				{
+					in_nested_obj++;
+				}
+				else if(str[i] == '}')
+				{
+					in_nested_obj--;
+				}
+				else if(str[i] == '[')
+				{
+					in_nested_arr++;
+				}
+				else if(str[i] == ']')
+				{
+					in_nested_arr--;
+				}	
+			}
+			
 			//extract values
-			if(str[i-1] == '[' || str[i-1] == ',')
+			if((str[i-1] == ',' || i == 1) && ((in_nested_obj + in_nested_arr) == 0))
 			{
 				val_start = i;
 				val_captured = 0;
@@ -2023,7 +2088,7 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 			//convert values
 			if(!val_captured)
 			{	
-				jdpl_val* to_add = parse_value(str + val_start, len);
+				jdpl_val* to_add = parse_value(str + val_start, len - val_start);
 				if(to_add)
 				{
 					jdpl_arradd(to_add, to_return);
@@ -2041,6 +2106,14 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 				val_captured = 1;
 			}
 		}
+	}
+	
+	if((in_nested_obj + in_nested_arr) > 0)
+	{
+		printf("%d\n", in_nested_arr);
+		jdpl_free_arr(to_return);
+		to_return = jdpl_new_arr();
+		return to_return;
 	}
 	
 	return to_return;
