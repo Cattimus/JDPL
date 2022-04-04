@@ -25,7 +25,10 @@ int obj_deep_copy();
 int arr_deep_copy();
 
 char* object_output(char* input);
+char* object_file(char* filename);
+
 char* array_output(char* input);
+char* array_file(char* filename);
 int run_test(char* input, char* expected_output, char* log_message, char* (*check_function)(char*));
 
 void run_unit_tests();
@@ -106,6 +109,27 @@ void run_unit_tests()
 		"{\"Name\":\"cattimus\",\"arr\":[\"test\",\"obj\"]}",
 		"Array nested in object",
 		object_output
+		);
+
+	pass_counter += run_test(
+		"../json_sample.json",
+		"{\"glossary\":{\"title\":\"example glossary\",\"GlossDiv\":{\"title\":\"S\",\"GlossList\":{\"GlossEntry\":{\"GlossSee\":\"markup\",\"GlossDef\":{\"para\":\"A meta-markup language, used to create markup languages such as DocBook.\",\"GlossSeeAlso\":[\"GML\",\"XML\"]},\"GlossTerm\":\"Standard Generalized Markup Language\",\"SortAs\":\"SGML\",\"Acronym\":\"SGML\",\"Abbrev\":\"ISO 8879:1986\",\"ID\":\"SGML\"}}}}}",
+		"Object file read",
+		object_file
+		);
+
+	pass_counter += run_test(
+		NULL,
+		"{}",
+		"Object file read null",
+		object_file
+		);
+
+	pass_counter += run_test(
+		"cats.txt",
+		"{}",
+		"Object file read (file does not exist)",
+		object_file
 		);
 
 	printf("\n\n");
@@ -202,17 +226,26 @@ void run_unit_tests()
 	printf("\nPassed tests: %d/%d\n", pass_counter, tests_run);
 }
 
+char* object_file(char* filename)
+{
+	jdpl_obj* test = jdpl_obj_fromfile(filename);
+	char* str = jdpl_obj_tostr(test);
+	jdpl_free_obj(test);
+
+	return str;
+}
+
 int run_test(char* input, char* expected_output, char* log_message, char* (*check_function)(char*))
 {
 	tests_run++;
 	char* str = check_function(input);
 	int result = strcmp(expected_output, str) == 0;
 
-	printf("%s: %s\n" ANSI_COLOR_RESET, log_message, result ? ANSI_COLOR_GREEN "pass" :  ANSI_COLOR_RED "fail");
+	printf("%s: %s\n", log_message, result ? ANSI_COLOR_GREEN "pass" ANSI_COLOR_RESET :  ANSI_COLOR_RED "fail" ANSI_COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
-		printf("Expected result: %s\n", expected_output);
+		printf("Expected result: %s\n\n", expected_output);
 		printf("Actual result: %s\n\n", str);
 	}
 
