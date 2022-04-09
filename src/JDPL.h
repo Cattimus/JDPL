@@ -9,6 +9,11 @@
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
 
+//color for text
+#define __JDPL__COLOR_GREEN "\033[0;32m"
+#define __JDPL__COLOR_RED   "\033[0;31m"
+#define __JDPL__COLOR_RESET "\033[0m"
+
 /***********************************************************************
  ***************FORWARD DECLARATIONS OF ALL TYPES***********************
  ***********************************************************************/
@@ -320,7 +325,7 @@ static jdpl_obj* __jdpl__copy_obj(jdpl_obj* data)
 	to_return->hashmap = (jdpl_keypair**)realloc(to_return->hashmap, sizeof(jdpl_keypair*) * to_return->max_size);
 	if(!to_return->hashmap)
 	{
-		fprintf(stderr, "__jdpl__copy_obj: Failed to realloc deep copy buffer\n");
+		fprintf(stderr, __JDPL__COLOR_RED "__jdpl__copy_obj: Failed to realloc deep copy buffer\n" __JDPL__COLOR_RESET);
 		exit(1);
 	}
 
@@ -349,7 +354,7 @@ static jdpl_arr* __jdpl__copy_arr(jdpl_arr* data)
 	to_return->arr = (jdpl_val**)realloc(to_return->arr, sizeof(jdpl_val*) * to_return->max_size);
 	if(!to_return->arr)
 	{
-		fprintf(stderr, "__jdpl__copy_arr: Failed to realloc deep copy buffer\n");
+		fprintf(stderr, __JDPL__COLOR_RED "__jdpl__copy_arr: Failed to realloc deep copy buffer\n" __JDPL__COLOR_RESET);
 		exit(1);
 	}
 
@@ -666,7 +671,7 @@ static void __jdpl__resize_hashmap(jdpl_obj* src, size_t new_size)
 	//this is an error condition because the items cannot fit in the new array
 	if(new_size <= src->count)
 	{
-		fprintf(stderr, "__jdpl__resize_hashmap: new size is smaller than current item count. Resize aborted.\n");
+		fprintf(stderr, __JDPL__COLOR_RED "__jdpl__resize_hashmap: new size is smaller than current item count. Resize aborted.\n" __JDPL__COLOR_RESET);
 		return;
 	}
 
@@ -724,7 +729,7 @@ static void __jdpl__objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
 	//no room in object for new index (should never happen)
 	if(index == -1)
 	{
-		fprintf(stderr, "__jdpl__objadd_keypair: resizing error - not enough room in hashmap for new object with key %s\n", to_add->key);
+		fprintf(stderr, __JDPL__COLOR_RED "__jdpl__objadd_keypair: resizing error - not enough room in hashmap for new object with key %s\n" __JDPL__COLOR_RESET, to_add->key);
 		return;
 	}
 	
@@ -769,7 +774,7 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	//no room in object for new index (should never happen)
 	if(index == -1)
 	{
-		fprintf(stderr, "jdpl_objadd: resizing error - not enough room in hashmap for new object with key %s\n", key);
+		fprintf(stderr, __JDPL__COLOR_RED "jdpl_objadd: resizing error - not enough room in hashmap for new object with key %s\n" __JDPL__COLOR_RESET, key);
 		return;
 	}
 	
@@ -824,7 +829,7 @@ void jdpl_objadd_copy(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	//no room in object for new index (should never happen)
 	if(index == -1)
 	{
-		fprintf(stderr, "jdpl_objadd_copy: resizing error - not enough room in hashmap for new object with key %s\n", key);
+		fprintf(stderr, __JDPL__COLOR_RED "jdpl_objadd_copy: resizing error - not enough room in hashmap for new object with key %s\n" __JDPL__COLOR_RESET, key);
 		return;
 	}
 	
@@ -1053,7 +1058,7 @@ void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 		//error out if realloc is unsuccessful
 		if(!val_temp)
 		{
-			fprintf(stderr, "jdpl_arradd: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
+			fprintf(stderr, __JDPL__COLOR_RED "jdpl_arradd: Memory allocation error. Could not realloc array of size: %lu.\n" __JDPL__COLOR_RESET, (unsigned long)to_set->max_size);
 			exit(1);
 		}
 		
@@ -1091,7 +1096,7 @@ void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
 		//error out if realloc is unsuccessful
 		if(val_temp == NULL)
 		{
-			fprintf(stderr, "jdpl_arradd_copy: Memory allocation error. Could not realloc array of size: %lu.\n", (unsigned long)to_set->max_size);
+			fprintf(stderr, __JDPL__COLOR_RED "jdpl_arradd_copy: Memory allocation error. Could not realloc array of size: %lu.\n" __JDPL__COLOR_RESET, (unsigned long)to_set->max_size);
 			exit(1);
 		}
 		
@@ -1422,7 +1427,7 @@ char* jdpl_obj_tostr(jdpl_obj* to_convert)
 		char* temp = (char*)realloc(to_return, str_size);
 		if(temp == NULL)
 		{
-			fprintf(stderr, "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n", str_size);
+			fprintf(stderr, __JDPL__COLOR_RED "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n" __JDPL__COLOR_RESET, str_size);
 			exit(1);
 		}
 		to_return = temp;
@@ -1479,7 +1484,7 @@ char* jdpl_arr_tostr(jdpl_arr* to_convert)
 		char* temp = (char*)realloc(to_return, str_size);
 		if(temp == NULL)
 		{
-			fprintf(stderr, "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n", str_size);
+			fprintf(stderr, __JDPL__COLOR_RED "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n" __JDPL__COLOR_RESET, str_size);
 			exit(1);
 		}
 		to_return = temp;
@@ -1824,6 +1829,9 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 	}
 	else if(is_number > -1)
 	{
+		//this is to make up for is_number starting at -1
+		is_number += 1;
+		
 		//copy substr for value
 		size_t data_size = is_number;
 		char* value = (char*)malloc(data_size + 1);
@@ -1897,7 +1905,7 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 		}
 	}
 
-	fprintf(stderr, "__jdpl__parse_value: Something has gone horribly wrong, this case should never be hit");
+	fprintf(stderr, __JDPL__COLOR_RED "__jdpl__parse_value: Something has gone horribly wrong, this case should never be hit" __JDPL__COLOR_RESET);
 	//error case where value cannot be parsed correctly. This should lead to an empty array/object
 	return NULL;
 }
@@ -2198,7 +2206,7 @@ static char* __jdpl__read_file(const char* filename)
 	//if file can't be opened return {}
 	if(!input)
 	{
-		fprintf(stderr, "__jdpl__read_file: Failed to open file %s.\n", filename);
+		fprintf(stderr, __JDPL__COLOR_RED "__jdpl__read_file: Failed to open file %s.\n" __JDPL__COLOR_RESET, filename);
 		return NULL;
 	}
 	
@@ -2214,7 +2222,7 @@ static char* __jdpl__read_file(const char* filename)
 
 		if(!stemp)
 		{
-			fprintf(stderr, "__jdpl__read_file: File buffer resize failed.\n");
+			fprintf(stderr, __JDPL__COLOR_RED "__jdpl__read_file: File buffer resize failed.\n" __JDPL__COLOR_RESET);
 			exit(1);
 		}
 		else

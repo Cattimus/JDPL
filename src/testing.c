@@ -1,14 +1,12 @@
 #include <stdio.h>
 #include <time.h>
+#include <signal.h>
+
 #include "JDPL.h"
+#include "fuzzing.h"
 
 #define PRINT_FAILED 1
 #define DEBUG_BUILD 1
-
-//color for text
-#define ANSI_COLOR_GREEN "\033[0;32m"
-#define ANSI_COLOR_RED   "\033[0;31m"
-#define ANSI_COLOR_RESET "\033[0m"
 
 int tests_run = 0;
 
@@ -32,11 +30,80 @@ char* array_file(char* filename);
 int run_test(char* input, char* expected_output, char* log_message, char* (*check_function)(char*));
 
 void run_unit_tests();
+void start_fuzzing();
 
-int main()
+static volatile int running = 1;
+
+//exit program gracefully
+void handle_exit()
 {
+	running = 0;
+}
+
+int main(int argc, char* argv[])
+{
+	if(argc > 1)
+	{
+		jdpl_obj* test = jdpl_obj_fromfile(argv[1]);
+		char* str = jdpl_obj_tostr(test);
+		jdpl_prettify(&str, 4);
+
+		printf("Input: \n%s\n\n", argv[1]);
+		printf("Output: \n%s\n\n", str);
+
+		jdpl_free_obj(test);
+		free(str);
+
+		exit(0);
+	}
+
+	signal(SIGINT, handle_exit);
+
+	srand(time(NULL));
+
+	printf("UNIT TESTS:\n");
 	run_unit_tests();
+
+	printf("\n\n");
+	printf("FUZZING:\n");
+	start_fuzzing();
+	
     return 0;
+}
+
+void start_fuzzing()
+{
+	unsigned long long int test_counter = 0;
+
+	while(running)
+	{
+		char* val = generate_json();
+		//printf("input value: \n%s\n\n", val);
+		
+		jdpl_obj* test = jdpl_obj_fromstr(val);
+		char* output = jdpl_obj_tostr(test);
+		jdpl_prettify(&output, 4);
+
+		//printf("output value: \n%s\n\n", output);
+
+		if(strcmp(output, "{}") == 0)
+		{
+			running = 0;
+		}
+
+		if(test_counter++ % 101 == 0)
+		{
+			printf("\r");
+			printf("fuzzing tests run: %llu", test_counter);
+			fflush(stdout);
+		}
+
+		jdpl_free_obj(test);
+		free(output);
+		free(val);
+		test_counter++;
+	}
+	printf("\n");
 }
 
 /*
@@ -241,7 +308,7 @@ int run_test(char* input, char* expected_output, char* log_message, char* (*chec
 	char* str = check_function(input);
 	int result = strcmp(expected_output, str) == 0;
 
-	printf("%s: %s\n", log_message, result ? ANSI_COLOR_GREEN "pass" ANSI_COLOR_RESET :  ANSI_COLOR_RED "fail" ANSI_COLOR_RESET);
+	printf("%s: %s\n", log_message, result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
@@ -301,7 +368,7 @@ int obj_million_allocation()
 		result = time_elapsed < 600;
 	}
 
-	printf("Object allocation efficiency: %s\n" ANSI_COLOR_RESET, result ? ANSI_COLOR_GREEN "pass" : ANSI_COLOR_RED "fail");
+	printf("Object allocation efficiency: %s\n", result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
@@ -334,7 +401,7 @@ int arr_million_allocation()
 	double time_elapsed = ((double)(end - start) / CLOCKS_PER_SEC) * 1000;
 	int result = time_elapsed < 100;
 
-	printf("Array allocation efficiency: %s\n" ANSI_COLOR_RESET, result ? ANSI_COLOR_GREEN "pass" : ANSI_COLOR_RED "fail");
+	printf("Array allocation efficiency: %s\n", result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
@@ -376,7 +443,7 @@ int obj_deep_copy()
 
 	int result = (*jdpl_objgetnum("500", left_test) != *jdpl_objgetnum("500", right_test));
 
-	printf("Object deep copy: %s\n" ANSI_COLOR_RESET, result ? ANSI_COLOR_GREEN "pass" : ANSI_COLOR_RED "fail");
+	printf("Object deep copy: %s\n",  result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
@@ -411,7 +478,7 @@ int arr_deep_copy()
 	*jdpl_arrgetnum(500, jdpl_arrgetarr(0, left)) = 8192;
 
 	int result = *jdpl_arrgetnum(500, jdpl_arrgetarr(0, left)) != *jdpl_arrgetnum(500, jdpl_arrgetarr(0, right));
-	printf("Array deep copy: %s\n" ANSI_COLOR_RESET, result ? ANSI_COLOR_GREEN "pass" : ANSI_COLOR_RED "fail");
+	printf("Array deep copy: %s\n", result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{

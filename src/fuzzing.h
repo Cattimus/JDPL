@@ -292,7 +292,7 @@ char* generate_arr(int* depth)
 
 char* generate_json()
 {
-	int max_depth = ((rand() % 5) + 1) * -1;
+	int max_depth = (rand() % 5) * -1;
 	char* to_return = generate_obj(&max_depth);
 	return to_return;
 }
