@@ -2072,7 +2072,7 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 		}
 	}
 
-	//TODO - this isn't working properly for some reason, theoretically this would make the object invalid
+	//This check seems to not actually help verify the validity of the json data, so it has been omitted
 	/*
 	in_nested_obj++;
 	if(in_nested_obj != 0 || in_nested_arr != 0)
@@ -2177,7 +2177,7 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 		}
 	}
 
-	//TODO - this isn't working properly for some reason, theoretically this would make the object invalid
+	//This check seems to not actually help verify the validity of the json data, so it has been omitted
 	/*
 	in_nested_arr++;
 	if(in_nested_obj != 0 || in_nested_arr != 0)
