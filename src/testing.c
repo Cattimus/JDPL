@@ -1,12 +1,16 @@
 #include <stdio.h>
 #include <time.h>
 #include <signal.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "JDPL.h"
 #include "fuzzing.h"
 
 #define PRINT_FAILED 1
 #define DEBUG_BUILD 1
+
+#define MAX_THREADS 12
 
 int tests_run = 0;
 
@@ -34,32 +38,59 @@ void start_fuzzing();
 
 static volatile int running = 1;
 
+pthread_t threads[MAX_THREADS];
+int thread_running[MAX_THREADS];
+char* values[MAX_THREADS];
+pthread_mutex_t value_lock[MAX_THREADS];
+
 //exit program gracefully
 void handle_exit()
 {
 	running = 0;
 }
 
-int main(int argc, char* argv[])
+//validate a json string won't crash the program
+void* validate_json(void* args)
 {
-	if(argc > 1)
+	int thread_num = *(int*)args;
+	thread_running[thread_num] = 1;
+	
+	while(thread_running[thread_num])
 	{
-		jdpl_obj* test = jdpl_obj_fromfile(argv[1]);
-		char* str = jdpl_obj_tostr(test);
-		jdpl_prettify(&str, 4);
+		pthread_mutex_lock(&value_lock[thread_num]);
+		//wait for new info to be added
+		if(values[thread_num])
+		{
+			jdpl_obj* test = jdpl_obj_fromstr(values[thread_num]);
+			char* output = jdpl_obj_tostr(test);
+			jdpl_prettify(&output, 4);
 
-		printf("Input: \n%s\n\n", argv[1]);
-		printf("Output: \n%s\n\n", str);
+			free(values[thread_num]);
+			free(output);
+			jdpl_free_obj(test);
+			values[thread_num] = NULL;
+		}
+		pthread_mutex_unlock(&value_lock[thread_num]);
 
-		jdpl_free_obj(test);
-		free(str);
-
-		exit(0);
+		usleep(1000);
 	}
+	return NULL;
+}
 
+int main()
+{
 	signal(SIGINT, handle_exit);
-
 	srand(time(NULL));
+	
+	//create threads
+	for(int i = 0; i < MAX_THREADS; i++)
+	{
+		pthread_create(&threads[i], NULL, validate_json, &i);
+		while(!thread_running[i])
+		{
+			usleep(1000);
+		}
+	}
 
 	printf("UNIT TESTS:\n");
 	run_unit_tests();
@@ -67,6 +98,13 @@ int main(int argc, char* argv[])
 	printf("\n\n");
 	printf("FUZZING:\n");
 	start_fuzzing();
+
+	//join threads
+	for(int i = 0; i < MAX_THREADS; i++)
+	{
+		thread_running[i] = 0;
+		pthread_join(threads[i], NULL);
+	}
 	
     return 0;
 }
@@ -77,32 +115,40 @@ void start_fuzzing()
 
 	while(running)
 	{
-		char* val = generate_json();
-		//printf("input value: \n%s\n\n", val);
+		for(int i = 0; i < MAX_THREADS; i++)
+		{
+			if(!values[i])
+			{
+				pthread_mutex_lock(&value_lock[i]);
+				values[i] = generate_json();
+				test_counter++;
+				pthread_mutex_unlock(&value_lock[i]);
+				break;
+			}
+		}
+
+		if(test_counter > 100000)
+		{
 		
-		jdpl_obj* test = jdpl_obj_fromstr(val);
-		char* output = jdpl_obj_tostr(test);
-		jdpl_prettify(&output, 4);
-
-		//printf("output value: \n%s\n\n", output);
-
-		if(strcmp(output, "{}") == 0)
-		{
-			running = 0;
+			if(test_counter % 100 == 0)
+			{
+				printf("\r");
+				printf("fuzzing tests run: %llu", test_counter);
+				fflush(stdout);
+			}
 		}
-
-		if(test_counter++ % 101 == 0)
+		else
 		{
-			printf("\r");
-			printf("fuzzing tests run: %llu", test_counter);
-			fflush(stdout);
+			if(test_counter % 10 == 0)
+			{
+				printf("\r");
+				printf("fuzzing tests run: %llu", test_counter);
+				fflush(stdout);
+			}
 		}
-
-		jdpl_free_obj(test);
-		free(output);
-		free(val);
-		test_counter++;
 	}
+	printf("\r");
+	printf("fuzzing tests run: %llu", test_counter);
 	printf("\n");
 }
 
