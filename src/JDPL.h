@@ -181,8 +181,7 @@ jdpl_obj* jdpl_new_obj()
 	to_return->count = 0;
 	
 	//initialize keypair array (hash table)
-	to_return->hashmap = (jdpl_keypair**)malloc(sizeof(jdpl_keypair*) * JDPL_MIN_SIZE);
-	memset(to_return->hashmap, 0, sizeof(jdpl_keypair*) * JDPL_MIN_SIZE);
+	to_return->hashmap = (jdpl_keypair**)calloc(sizeof(jdpl_keypair*) * JDPL_MIN_SIZE, 1);
 	
 	return to_return;
 }
@@ -196,9 +195,7 @@ jdpl_arr* jdpl_new_arr()
 	to_return->count = 0;
 	
 	//initialize array
-	to_return->arr = (jdpl_val**)malloc(sizeof(jdpl_val*) * JDPL_MEMSTEP);
-	memset(to_return->arr, 0, sizeof(jdpl_val*) * JDPL_MEMSTEP);
-	
+	to_return->arr = (jdpl_val**)calloc(sizeof(jdpl_val*) * JDPL_MEMSTEP, 1);	
 	return to_return;
 }
 
@@ -321,6 +318,7 @@ static jdpl_obj* __jdpl__copy_obj(jdpl_obj* data)
 	to_return->count = data->count;
 	to_return->max_size = data->max_size;
 
+	
 	//resize buffer to the required size
 	to_return->hashmap = (jdpl_keypair**)realloc(to_return->hashmap, sizeof(jdpl_keypair*) * to_return->max_size);
 	if(!to_return->hashmap)
@@ -682,8 +680,7 @@ static void __jdpl__resize_hashmap(jdpl_obj* src, size_t new_size)
 	}
 	
 	int arr_count = 0;
-	jdpl_keypair** temp_array = (jdpl_keypair**)malloc(sizeof(jdpl_keypair*) * src->max_size);
-	memset(temp_array, 0, sizeof(jdpl_keypair*) * src->max_size);
+	jdpl_keypair** temp_array = (jdpl_keypair**)calloc(sizeof(jdpl_keypair*) * src->max_size, 1);
 	
 	//load all hashes to temporary array
 	for(unsigned int i = 0; i < src->max_size; i++)
@@ -779,8 +776,7 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	}
 	
 	//initialize new keypair
-	jdpl_keypair* to_write = (jdpl_keypair*)malloc(sizeof(jdpl_keypair));
-	memset(to_write, 0, sizeof(jdpl_keypair));
+	jdpl_keypair* to_write = (jdpl_keypair*)calloc(sizeof(jdpl_keypair), 1);
 	
 	//deep copy key
 	to_write->key = (char*)malloc(sizeof(char) * strlen(key) + 1);
@@ -834,8 +830,7 @@ void jdpl_objadd_copy(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	}
 	
 	//initialize new keypair
-	jdpl_keypair* to_write = (jdpl_keypair*)malloc(sizeof(jdpl_keypair));
-	memset(to_write, 0, sizeof(jdpl_keypair));
+	jdpl_keypair* to_write = (jdpl_keypair*)calloc(sizeof(jdpl_keypair), 1);
 	
 	//deep copy key
 	to_write->key = (char*)malloc(sizeof(char) * strlen(key) + 1);
@@ -1398,8 +1393,7 @@ char* jdpl_obj_tostr(jdpl_obj* to_convert)
 	int str_index = 1; //current index in the string
 	unsigned int read_objects = 0; //number of objects read (should this be here?)
 	
-	char* to_return = (char*)malloc(str_size);
-	memset(to_return, 0, 3);
+	char* to_return = (char*)calloc(str_size, 1);
 	to_return[0] = '{';
 	
 	//go through each keypair in object
@@ -1462,8 +1456,7 @@ char* jdpl_arr_tostr(jdpl_arr* to_convert)
 	
 	int str_size = 3;
 	int str_index = 1;
-	char* to_return = (char*)malloc(str_size);
-	memset(to_return, 0, 3);
+	char* to_return = (char*)calloc(str_size, 1);
 	
 	to_return[0] = '[';
 	for(unsigned int i = 0; i < to_convert->count; i++)
@@ -1618,6 +1611,12 @@ void jdpl_prettify(char** to_prettify, unsigned int indent_size)
 					index++;
 				}
 			}
+			else if(src_str[i] == ':')
+			{
+				str[index] = ':';
+				str[index+1] = ' ';
+				index += 2;
+			}
 			else
 			{
 				str[index] = src_str[i];
@@ -1629,16 +1628,30 @@ void jdpl_prettify(char** to_prettify, unsigned int indent_size)
 			str[index] = src_str[i];
 			index++;
 		}
-		
+
+		//resize string
 		if(index >= str_max * 0.75)
 		{
 			char* temp = (char*)realloc(str, str_max * 1.5);
+			if(!temp)
+			{
+				fprintf(stderr, __JDPL__COLOR_RED "jdpl_prettify: failed to resize output string.\n" __JDPL__COLOR_RESET);
+				exit(1);
+			}
 			str = temp;
 			str_max = str_max * 1.5;
 		}
 	}
+
+	//final resize of string
+	char* temp = (char*)realloc(str, index+1);
+	if(!temp)
+	{
+		fprintf(stderr, __JDPL__COLOR_RED "jdpl_prettify: failed to resize output string.\n" __JDPL__COLOR_RESET);
+		exit(1);
+	}
 	
-	str = (char*)realloc(str, index+1);
+	str = temp;
 	str[index] = '\0';
 	
 	free(*to_prettify);
@@ -1905,7 +1918,7 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 		}
 	}
 
-	fprintf(stderr, __JDPL__COLOR_RED "__jdpl__parse_value: Something has gone horribly wrong, this case should never be hit" __JDPL__COLOR_RESET);
+	fprintf(stderr, __JDPL__COLOR_RED "__jdpl__parse_value: Something has gone horribly wrong, this case should never be hit\n" __JDPL__COLOR_RESET);
 	//error case where value cannot be parsed correctly. This should lead to an empty array/object
 	return NULL;
 }
@@ -2211,8 +2224,7 @@ static char* __jdpl__read_file(const char* filename)
 	}
 	
 	//create string to hold file contents
-	char* str = (char*)malloc(sizeof(char) * 8192 + 1);
-	memset(str, 0, 8192 + 1);
+	char* str = (char*)calloc(sizeof(char) * 8192 + 1, 1);
 	size_t current_end = 8192;
 
 	//read file to string
