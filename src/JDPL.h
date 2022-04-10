@@ -9,6 +9,10 @@
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
 
+//TODO - test functions for usability
+//TODO - possibly rethink syntax
+//TODO - add nested object and array get functions
+
 //color for text
 #define __JDPL__COLOR_GREEN "\033[0;32m"
 #define __JDPL__COLOR_RED   "\033[0;31m"
@@ -31,22 +35,28 @@ typedef struct JDPL_KEYPAIR   jdpl_keypair;
 jdpl_obj* jdpl_new_obj();
 jdpl_arr* jdpl_new_arr();
 
-//value creation functions
+//value set functions
 jdpl_val* jdpl_valnull();
-jdpl_val* jdpl_vali(int);
-jdpl_val* jdpl_valb(int);
-jdpl_val* jdpl_valf(float);
-jdpl_val* jdpl_vald(double);
-jdpl_val* jdpl_vall(int64_t);
-jdpl_val* jdpl_vals(const char*);
+jdpl_val* jdpl_valbool(int);
+jdpl_val* jdpl_valnum(double);
+jdpl_val* jdpl_valstr(const char*);
+jdpl_val* jdpl_valobj(jdpl_obj*);
+jdpl_val* jdpl_valarr(jdpl_arr*);
+
+//value get functions
+double*   jdpl_getnum(jdpl_val*);
+char*     jdpl_getstr(jdpl_val*);
+int       jdpl_getbool(jdpl_val*);
+jdpl_obj* jdpl_getobj(jdpl_val*);
+jdpl_arr* jdpl_getarr(jdpl_val*);
+jdpl_val* jdpl_arrget(unsigned int, jdpl_arr*);
+jdpl_val* jdpl_objget(const char*, jdpl_obj*);
 
 //copy functions
 static size_t    __jdpl__hash_str(const char*, size_t);
 static jdpl_obj* __jdpl__copy_obj(jdpl_obj*);
 static jdpl_arr* __jdpl__copy_arr(jdpl_arr*);
-       jdpl_val* jdpl_valobj(jdpl_obj*);
        jdpl_val* jdpl_valobj_copy(jdpl_obj*);
-       jdpl_val* jdpl_valarr(jdpl_arr*);
        jdpl_val* jdpl_val_copy(jdpl_val*);
 static jdpl_keypair* __jdpl__copy_keypair(jdpl_keypair*);
 
@@ -64,27 +74,12 @@ static void __jdpl__objadd_keypair(jdpl_keypair*, jdpl_obj*);
        void jdpl_objadd(const char*, jdpl_val*, jdpl_obj*);
        void jdpl_objadd_copy(const char*, jdpl_val*, jdpl_obj*);
 
-//obj get functions
-      int*      jdpl_objgetb(const char*, jdpl_obj*);
-const char*     jdpl_objgets(const char*, jdpl_obj*);
-      double*   jdpl_objgetnum(const char*, jdpl_obj*);
-      jdpl_val* jdpl_objget(const char*, jdpl_obj*);
-      jdpl_obj* jdpl_objgetobj(const char*, jdpl_obj*);
-      jdpl_arr* jdpl_objgetarr(const char*, jdpl_obj*);
-
 //arr set functions
        void      jdpl_arradd(jdpl_val*, jdpl_arr*);
        void      jdpl_arrset(jdpl_val*, unsigned int, jdpl_arr*);
        void      jdpl_arradd_copy(jdpl_val*, jdpl_arr*);
        void      jdpl_arrset_copy(jdpl_val*, unsigned int, jdpl_arr*);
 static jdpl_val* __jdpl__search_arr(jdpl_arr*, unsigned int);
-
-//array get functions
-int*      jdpl_arrgetb(unsigned int, jdpl_arr*);
-double*   jdpl_arrgetnum(unsigned int, jdpl_arr*);
-jdpl_val* jdpl_arrget(unsigned int, jdpl_arr*);
-jdpl_obj* jdpl_arrgetobj(unsigned int, jdpl_arr*);
-jdpl_arr* jdpl_arrgetarr(unsigned int, jdpl_arr*);
 
 //to string functions
        char* jdpl_val_tostr(jdpl_val*);
@@ -105,7 +100,7 @@ static jdpl_keypair* __jdpl__parse_keypair(const char*);
 
 typedef enum JDPL_TYPE_ENUM
 {
-	JDPL_TYPE_TEXT = 0, JDPL_TYPE_NUM, JDPL_TYPE_BOOL, JDPL_TYPE_OBJ, JDPL_TYPE_ARR, JDPL_TYPE_NULL, JDPL_TYPE_INVALID
+	JDPL_TYPE_TEXT, JDPL_TYPE_NUM, JDPL_TYPE_BOOL, JDPL_TYPE_OBJ, JDPL_TYPE_ARR, JDPL_TYPE_NULL, JDPL_TYPE_INVALID
 }JDPL_TYPE;
 
 typedef struct JDPL_VALUE
@@ -128,6 +123,7 @@ typedef struct JDPL_VALUE
 
 typedef struct JDPL_ARRAY
 {
+	int valid;        //set to false if parsing fails(fromstr)
 	size_t count;     //number of items held by array
 	size_t max_size;
 	jdpl_val** arr;   //array of value objects
@@ -143,6 +139,7 @@ typedef struct JDPL_KEYPAIR
 
 typedef struct JDPL_OBJECT
 {
+	int valid;       //set to false if parsing fails(fromstr)
 	size_t count;
 	size_t max_size;
 	jdpl_keypair** hashmap;
@@ -179,6 +176,7 @@ jdpl_obj* jdpl_new_obj()
 	
 	to_return->max_size = JDPL_MEMSTEP;
 	to_return->count = 0;
+	to_return->valid = 1;
 	
 	//initialize keypair array (hash table)
 	to_return->hashmap = (jdpl_keypair**)calloc(sizeof(jdpl_keypair*) * JDPL_MIN_SIZE, 1);
@@ -193,37 +191,15 @@ jdpl_arr* jdpl_new_arr()
 	
 	to_return->max_size = JDPL_MEMSTEP;
 	to_return->count = 0;
+	to_return->valid = 1;
 	
 	//initialize array
 	to_return->arr = (jdpl_val**)calloc(sizeof(jdpl_val*) * JDPL_MEMSTEP, 1);	
 	return to_return;
 }
 
-//create value from integer
-jdpl_val* jdpl_vali(int data)
-{
-	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
-
-	to_return->type = JDPL_TYPE_NUM;
-	to_return->data_size = sizeof(double);
-	to_return->data.num = (double)data;
-	return to_return;
-}
-
-//create value from 64 bit integer
-jdpl_val* jdpl_vall(int64_t data)
-{
-	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
-
-	to_return->type = JDPL_TYPE_NUM;
-	to_return->data_size = sizeof(double);
-	to_return->data.num = (double)data;
-	
-	return to_return;
-}
-
 //create value from string
-jdpl_val* jdpl_vals(const char* data)
+jdpl_val* jdpl_valstr(const char* data)
 {
 	if(data == NULL)
 	{
@@ -240,20 +216,8 @@ jdpl_val* jdpl_vals(const char* data)
 	return to_return;
 }
 
-//create value from float
-jdpl_val* jdpl_valf(float data)
-{
-	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
-
-	to_return->type = JDPL_TYPE_NUM;
-	to_return->data_size = sizeof(double);
-	to_return->data.num = (double)data;
-	
-	return to_return;
-}
-
-//create value from double
-jdpl_val* jdpl_vald(double data)
+//create value from number
+jdpl_val* jdpl_valnum(double data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
@@ -265,7 +229,7 @@ jdpl_val* jdpl_vald(double data)
 }
 
 //create value from boolean
-jdpl_val* jdpl_valb(int data)
+jdpl_val* jdpl_valbool(int data)
 {
 	jdpl_val* to_return = (jdpl_val*)malloc(sizeof(jdpl_val));
 
@@ -289,7 +253,7 @@ jdpl_val* jdpl_valnull()
 
 static jdpl_keypair* __jdpl__copy_keypair(jdpl_keypair* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -309,7 +273,7 @@ static jdpl_keypair* __jdpl__copy_keypair(jdpl_keypair* data)
 //deep copy a jdpl_obj to a new pointer
 static jdpl_obj* __jdpl__copy_obj(jdpl_obj* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -339,7 +303,7 @@ static jdpl_obj* __jdpl__copy_obj(jdpl_obj* data)
 //deep copy a jdpl_arr to a new pointer
 static jdpl_arr* __jdpl__copy_arr(jdpl_arr* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -367,7 +331,7 @@ static jdpl_arr* __jdpl__copy_arr(jdpl_arr* data)
 //shallow copy json object
 jdpl_val* jdpl_valobj(jdpl_obj* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -384,7 +348,7 @@ jdpl_val* jdpl_valobj(jdpl_obj* data)
 //deep copy json object
 jdpl_val* jdpl_valobj_copy(jdpl_obj* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -401,7 +365,7 @@ jdpl_val* jdpl_valobj_copy(jdpl_obj* data)
 //shallow copy json array
 jdpl_val* jdpl_valarr(jdpl_arr* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -418,7 +382,7 @@ jdpl_val* jdpl_valarr(jdpl_arr* data)
 //deep copy json array
 jdpl_val* jdpl_valarr_copy(jdpl_arr* data)
 {
-	if(data == NULL)
+	if(!data)
 	{
 		return NULL;
 	}
@@ -436,7 +400,7 @@ jdpl_val* jdpl_valarr_copy(jdpl_arr* data)
 jdpl_val* jdpl_val_copy(jdpl_val* to_copy)
 {
 	//this makes copying easier and less prone to errors
-	if(to_copy == NULL)
+	if(!to_copy)
 	{
 		return NULL;
 	}
@@ -470,6 +434,118 @@ jdpl_val* jdpl_val_copy(jdpl_val* to_copy)
 		to_return->data = to_copy->data;
 	}
 	return to_return;
+}
+
+/***********************************************************************
+ ***********************VALUE GET FUNCTIONS*****************************
+ ***********************************************************************/
+
+//get number from value
+double* jdpl_getnum(jdpl_val* to_get)
+{
+	if(!to_get)
+	{
+		return NULL;
+	}
+
+	if(to_get->type != JDPL_TYPE_NUM)
+	{
+		return NULL;
+	}
+
+	return &to_get->data.num;
+}
+
+//get string from value
+char* jdpl_getstr(jdpl_val* to_get)
+{
+	if(!to_get)
+	{
+		return NULL;
+	}
+
+	if(to_get->type != JDPL_TYPE_TEXT)
+	{
+		return NULL;
+	}
+
+	return to_get->data.text;
+}
+
+//get boolean from value
+int jdpl_getbool(jdpl_val* to_get)
+{
+	if(!to_get)
+	{
+		return -1;
+	}
+
+	if(to_get->type != JDPL_TYPE_BOOL)
+	{
+		return -1;
+	}
+
+	return to_get->data.boolean;
+}
+
+//get object from value
+jdpl_obj* jdpl_getobj(jdpl_val* to_get)
+{
+	if(!to_get)
+	{
+		return NULL;
+	}
+
+	if(to_get->type != JDPL_TYPE_OBJ)
+	{
+		return NULL;
+	}
+
+	return to_get->data.obj;
+}
+
+//get array from value
+jdpl_arr* jdpl_getarr(jdpl_val* to_get)
+{
+	if(!to_get)
+	{
+		return NULL;
+	}
+
+	if(to_get->type != JDPL_TYPE_ARR)
+	{
+		return NULL;
+	}
+
+	return to_get->data.arr;
+}
+
+//generic search, gets value at index
+jdpl_val* jdpl_arrget(unsigned int index, jdpl_arr* to_search)
+{
+	if(to_search == NULL)
+	{
+		return NULL;
+	}
+	
+	return __jdpl__search_arr(to_search, index);
+}
+
+//generic search for jdpl_obj
+jdpl_val* jdpl_objget(const char* key, jdpl_obj* to_search)
+{
+	if(key == NULL || to_search == NULL)
+	{
+		return NULL;
+	}
+	
+	int index = __jdpl__search_obj(key, to_search);
+	if(index < 0)
+	{
+		return NULL;
+	}
+	
+	return to_search->hashmap[index]->value;
 }
 
 /***********************************************************************
@@ -694,6 +770,12 @@ static void __jdpl__resize_hashmap(jdpl_obj* src, size_t new_size)
 	
 	//resize hashmap to new size
 	src->hashmap = (jdpl_keypair**)realloc(src->hashmap, sizeof(jdpl_keypair*) * new_size);
+	if(!src->hashmap)
+	{
+		fprintf(stderr, __JDPL__COLOR_RED "__jdpl__resize_hashmap: Failed to realloc buffer.\n" __JDPL__COLOR_RESET);
+		exit(1);
+	}
+	
 	src->count = 0;
 	src->max_size = new_size;
 	for(unsigned int i = 0; i < src->max_size; i++)
@@ -751,7 +833,7 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 		return;
 	}
 
-	//check for a recursive addition
+	//check for a recursive addition (adding itself)
 	if(val->type == JDPL_TYPE_OBJ)
 	{
 		if(val->data.obj == to_set)
@@ -852,168 +934,6 @@ void jdpl_objadd_copy(const char* key, jdpl_val* val, jdpl_obj* to_set)
 }
 
 /***********************************************************************
- *********************OBJECT GET FUNCTIONS*******************************
- ***********************************************************************/
-
-//generic search for jdpl_obj
-jdpl_val* jdpl_objget(const char* key, jdpl_obj* to_search)
-{
-	if(key == NULL || to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	int index = __jdpl__search_obj(key, to_search);
-	if(index < 0)
-	{
-		return NULL;
-	}
-	
-	return to_search->hashmap[index]->value;
-}
-
-//search for text(string)
-const char* jdpl_objgets(const char* key, jdpl_obj* to_search)
-{
-	if(key == NULL || to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	int index = __jdpl__search_obj(key, to_search);
-	if(index < 0)
-	{
-		return NULL;
-	}
-	jdpl_val* to_return = to_search->hashmap[index]->value;
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_TEXT)
-	{
-		return NULL;
-	}
-	
-	return to_return->data.text;
-}
-
-//search for number (always double)
-double* jdpl_objgetnum(const char* key, jdpl_obj* to_search)
-{
-	if(key == NULL || to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	int index = __jdpl__search_obj(key, to_search);
-	if(index < 0)
-	{
-		return NULL;
-	}
-	jdpl_val* to_return = to_search->hashmap[index]->value;
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_NUM)
-	{
-		return NULL;
-	}
-	
-	return &to_return->data.num;
-}
-
-//search for bool(boolean) 1 true 0 false -1 error
-int* jdpl_objgetb(const char* key, jdpl_obj* to_search)
-{
-	if(key == NULL || to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	int index = __jdpl__search_obj(key, to_search);
-	if(index < 0)
-	{
-		return NULL;
-	}
-	jdpl_val* to_return = to_search->hashmap[index]->value;
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_BOOL)
-	{
-		return NULL;
-	}
-	
-	return &to_return->data.boolean;
-}
-
-//search for obj(jdpl_obj)
-jdpl_obj* jdpl_objgetobj(const char* key, jdpl_obj* to_search)
-{
-	if(key == NULL || to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	int index = __jdpl__search_obj(key, to_search);
-	if(index < 0)
-	{
-		return NULL;
-	}
-	jdpl_val* to_return = to_search->hashmap[index]->value;
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_OBJ)
-	{
-		return NULL;
-	}
-	
-	return to_return->data.obj;
-}
-
-//search for arr(jdpl_arr)
-jdpl_arr* jdpl_objgetarr(const char* key, jdpl_obj* to_search)
-{
-	if(key == NULL || to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	int index = __jdpl__search_obj(key, to_search);
-	if(index < 0)
-	{
-		return NULL;
-	}
-	jdpl_val* to_return = to_search->hashmap[index]->value;
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_ARR)
-	{
-		return NULL;
-	}
-	
-	return to_return->data.arr;
-}
-
-
-/***********************************************************************
  **********************ARRAY SET FUNCTIONS*******************************
  ***********************************************************************/
 
@@ -1089,7 +1009,7 @@ void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
 		jdpl_val** val_temp = (jdpl_val**)realloc(to_set->arr, sizeof(jdpl_val*) * (to_set->max_size + JDPL_MEMSTEP));
 		
 		//error out if realloc is unsuccessful
-		if(val_temp == NULL)
+		if(!val_temp)
 		{
 			fprintf(stderr, __JDPL__COLOR_RED "jdpl_arradd_copy: Memory allocation error. Could not realloc array of size: %lu.\n" __JDPL__COLOR_RESET, (unsigned long)to_set->max_size);
 			exit(1);
@@ -1156,113 +1076,6 @@ void jdpl_arrset_copy(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 	
 	jdpl_free_val(to_set->arr[index]);
 	to_set->arr[index] = jdpl_val_copy(val);
-}
-
-/***********************************************************************
- **********************ARRAY GET FUNCTIONS*******************************
- ***********************************************************************/
-
-//generic search, gets value at index
-jdpl_val* jdpl_arrget(unsigned int index, jdpl_arr* to_search)
-{
-	if(to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	return __jdpl__search_arr(to_search, index);
-}
-
-//return value at index as a double(number)
-double* jdpl_arrgetnum(unsigned int index, jdpl_arr* to_search)
-{
-	if(to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	jdpl_val* to_return = __jdpl__search_arr(to_search, index);
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_NUM)
-	{
-		return NULL;
-	}
-	
-	return &to_return->data.num;
-}
-
-//return value at index as an int(boolean)
-int* jdpl_arrgetb(unsigned int index, jdpl_arr* to_search)
-{
-	if(to_search == NULL)
-	{
-		return NULL;
-	}
-		
-	jdpl_val* to_return = __jdpl__search_arr(to_search, index);
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_BOOL)
-	{
-		return NULL;
-	}
-	
-	return &to_return->data.boolean;
-}
-
-//return value at index as an obj reference(jdpl_obj*)
-jdpl_obj* jdpl_arrgetobj(unsigned int index, jdpl_arr* to_search)
-{
-	if(to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	jdpl_val* to_return = __jdpl__search_arr(to_search, index);
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_OBJ)
-	{
-		return NULL;
-	}
-	
-	return to_return->data.obj;
-}
-
-//return value at index as an arr reference(jdpl_arr*)
-jdpl_arr* jdpl_arrgetarr(unsigned int index, jdpl_arr* to_search)
-{
-	if(to_search == NULL)
-	{
-		return NULL;
-	}
-	
-	jdpl_val* to_return = __jdpl__search_arr(to_search, index);
-	
-	if(to_return == NULL)
-	{
-		return NULL;
-	}
-	
-	if(to_return->type != JDPL_TYPE_ARR)
-	{
-		return NULL;
-	}
-	
-	return to_return->data.arr;
 }
 
 /*************************************************************************
@@ -1372,7 +1185,6 @@ static char* __jdpl__keypair_tostr(jdpl_keypair* to_convert)
 	memcpy(to_return + 1, to_convert->key, key_size);
 	to_return[key_size + 1] = '"';
 	to_return[key_size + 2] = ':';
-	//to_return[key_size + 3] = ' '; <- this should be done in jdpl_prettify
 	memcpy(to_return+key_size+3, value_str, value_size);
 	to_return[str_size - 1] = '\0';
 	
@@ -1419,7 +1231,7 @@ char* jdpl_obj_tostr(jdpl_obj* to_convert)
 
 		//resize string that we will be returning
 		char* temp = (char*)realloc(to_return, str_size);
-		if(temp == NULL)
+		if(!temp)
 		{
 			fprintf(stderr, __JDPL__COLOR_RED "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n" __JDPL__COLOR_RESET, str_size);
 			exit(1);
@@ -1475,7 +1287,7 @@ char* jdpl_arr_tostr(jdpl_arr* to_convert)
 
 		//expand return string to hold value
 		char* temp = (char*)realloc(to_return, str_size);
-		if(temp == NULL)
+		if(!temp)
 		{
 			fprintf(stderr, __JDPL__COLOR_RED "jdpl_obj_tostr: Memory allocation error. Could not realloc array of size: %d.\n" __JDPL__COLOR_RESET, str_size);
 			exit(1);
@@ -1835,7 +1647,7 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 		value[data_size] = '\0';
 		
 		//return new value
-		jdpl_val* to_return = jdpl_vals(value);
+		jdpl_val* to_return = jdpl_valstr(value);
 		free(value);
 		
 		return to_return;
@@ -1852,7 +1664,7 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 		value[data_size] = '\0';
 		
 		//return new value
-		jdpl_val* to_return = jdpl_vald(atof(value));
+		jdpl_val* to_return = jdpl_valnum(atof(value));
 		free(value);
 		return to_return;
 	}
@@ -1906,7 +1718,7 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 		const char* cur = str+whitespace_counter;
 		if(strncmp(cur, "true", 4) == 0)
 		{
-			return jdpl_valb(1);
+			return jdpl_valbool(1);
 		}
 		else if(strncmp(cur, "null", 4) == 0)
 		{
@@ -1914,7 +1726,7 @@ static jdpl_val* __jdpl__parse_value(const char* str, unsigned int len)
 		}
 		else if(strncmp(cur, "false", 5) == 0)
 		{
-			return jdpl_valb(0);
+			return jdpl_valbool(0);
 		}
 	}
 
@@ -2026,6 +1838,7 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 
 	if(!str)
 	{
+		to_return->valid = 0;
 		return to_return;
 	}
 	
@@ -2034,11 +1847,13 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 	//special case for empty string
 	if(len < 1)
 	{
+		to_return->valid = 0;
 		return to_return;
 	}
 	
 	if(str[0] != '{')
 	{
+		to_return->valid= 0;
 		return to_return;
 	}
 
@@ -2059,6 +1874,7 @@ jdpl_obj* jdpl_obj_fromstr(const char* str)
 				{
 					jdpl_free_obj(to_return);
 					to_return = jdpl_new_obj();
+					to_return->valid = 0;
 					return to_return;
 				}
 			}
@@ -2115,6 +1931,7 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 
 	if(str == NULL)
 	{
+		to_return->valid = 0;
 		return to_return;
 	}
 	
@@ -2123,11 +1940,13 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
     //special case for empty string
 	if(len < 1)
 	{
+		to_return->valid = 0;
 		return to_return;
 	}
 	
 	if(str[0] != '[')
 	{
+		to_return->valid = 0;
 		return to_return;
 	}
 	
@@ -2162,6 +1981,7 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 				{
 					jdpl_free_arr(to_return);
 					to_return = jdpl_new_arr();
+					to_return->valid = 0;
 					return to_return;
 				}
 				
