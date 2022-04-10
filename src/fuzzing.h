@@ -10,15 +10,8 @@
 
 #include "JDPL.h"
 
-//TODO - insert special characters
-//TODO - insert formatting characters
-//TODO - insert unicode characters
-//TODO - insert backslash(\) character
-//TODO - scramble inputs
-//TODO - use uninitialized buffer
-//TODO - replace strings with uninitialized buffer
-
 static char* print_specifiers[] = {"%c", "%d", "%e", "%f", "%g", "%hi", "%hu", "%i", "%ld", "%lf", "%o", "%p", "%s", "%u", "%x", "%n", "%%", "%a"};
+static char* unicode_characters[] = {"😀", "🙂", "🙃", "😗", "🤐", "😌", "😟", "😯", "🤬", "💩", "😺", "❤", "💣", "👇", "🧠", "🧔", "🧘", "Ó", "ɂ"};
 
 static char* generate_value(int* data_type);
 static char* generate_keypair(int* depth);
@@ -33,12 +26,12 @@ static char* generate_value(int* data_type)
 	//select a random type for the data(does not include objects)
 	if(!data_type || *data_type == 0)
 	{
-		type = (rand() % 4) + 1;
+		type = (rand() / (RAND_MAX / 4)) + 1;
 	}
 	//generate object or arr
 	else if(*data_type < 0)
 	{
-		type = (rand() % 7) + 1;
+		type = (rand() / (RAND_MAX / 6)) + 1;
 	}
 	//select a predetermined type for the data
 	else
@@ -64,7 +57,7 @@ static char* generate_value(int* data_type)
 		for(int i = 1; i < text_size - 2; i++)
 		{
 			//random character value
-			value[i] = (rand() % ('~' - ' ')) + ' ';
+			value[i] = (rand() / (RAND_MAX / ('~' - ' '))) + ' ';
 
 			//invalid values
 			if(value[i] == '"' || value[i] == '\\')
@@ -80,15 +73,28 @@ static char* generate_value(int* data_type)
 			}
 
 			//random chance to insert a formatting character
-			if(rand() % 57 == 0)
+			if((rand() < (RAND_MAX / 1024)))
 			{
-				char* print_specifier = print_specifiers[rand() % 18];
+				char* print_specifier = print_specifiers[rand() / (RAND_MAX / 18)];
 				int print_specifier_len = strlen(print_specifier);
 
-				if((text_size - 3 - i) > 1)
+				if((text_size - (print_specifier_len + 1 + i)) > 1)
 				{
 					strcat(value, print_specifier);
 					i += print_specifier_len;
+				}
+			}
+
+			//random chance to insert unicode character
+			else if((rand() < (RAND_MAX / 512)))
+			{
+				char* special_char = unicode_characters[rand() / (RAND_MAX / 19)];
+				int char_len = strlen(special_char);
+
+				if((text_size - (char_len + 1 + i)) > 1)
+				{
+					strcat(value, special_char);
+					i += char_len;
 				}
 			}
 			
@@ -102,7 +108,7 @@ static char* generate_value(int* data_type)
 
 	case 2:
 	{
-		int text_size = rand() % 18 + 2;
+		int text_size = (rand() / (RAND_MAX / 18)) + 2;
 		int has_decimal = 0;
 		char* value = (char*)malloc(sizeof(char) * text_size);
 		memset(value, 0, sizeof(char) * text_size);
@@ -111,14 +117,14 @@ static char* generate_value(int* data_type)
 		for(int i = 0; i < text_size - 1; i++)
 		{
 			//random number value
-			value[i] = ((rand() % 10) + '0');
+			value[i] = ((rand() / (RAND_MAX / 10)) + '0');
 
 			//randomly insert a decimal
 			//this can generate invalid inputs on purpose
 			//possible generation of . at the beginning or end of the number
 			if(!has_decimal)
 			{
-				if(rand() % 97 == 0)
+				if(rand() < (RAND_MAX / 100))
 				{
 					value[i] = '.';
 					has_decimal = 1;
@@ -187,9 +193,21 @@ static char* generate_keypair(int* depth)
 	char* keypair = (char*)malloc(sizeof(char) * keypair_len);
 	memset(keypair, 0, keypair_len);
 
-	strcpy(keypair, key);
-	strcat(keypair, ":");
-	strcat(keypair, value);
+	//random chance to reverse key and value
+	if((rand() < (RAND_MAX / 10000)))
+	{
+		strcpy(keypair, value);
+		strcat(keypair, ":");
+		strcat(keypair, key);
+	}
+
+	//key and value in proper order
+	else
+	{
+		strcpy(keypair, key);
+		strcat(keypair, ":");
+		strcat(keypair, value);
+	}
 
 	free(key);
 	free(value);
@@ -198,7 +216,7 @@ static char* generate_keypair(int* depth)
 
 char* generate_obj(int* depth)
 {
-	int num_elements = rand() % 15 + 1;
+	int num_elements = (rand() / (RAND_MAX / 15)) + 1;
 	int current_size = sizeof(char) * 2;
 	char* to_return = (char*)malloc(sizeof(char) * 2);
 	
@@ -246,7 +264,7 @@ char* generate_obj(int* depth)
 
 char* generate_arr(int* depth)
 {
-	int num_elements = rand() % 15 + 1;
+	int num_elements = (rand() / (RAND_MAX / 15)) + 1;
 	int current_size = sizeof(char) * 2;
 	char* to_return = (char*)malloc(sizeof(char) * 2);
 	int max_depth = *depth;
@@ -292,7 +310,7 @@ char* generate_arr(int* depth)
 
 char* generate_json()
 {
-	int max_depth = (rand() % 5) * -1;
+	int max_depth = (rand() / (RAND_MAX / 5)) * -1;
 	char* to_return = generate_obj(&max_depth);
 	return to_return;
 }
