@@ -81,7 +81,7 @@ int main()
 {
 	signal(SIGINT, handle_exit);
 	srand(time(NULL));
-	
+
 	//create threads
 	for(int i = 0; i < MAX_THREADS; i++)
 	{
@@ -401,7 +401,7 @@ int obj_million_allocation()
 	{
 		char str[24];
 		sprintf(str, "%d", i);
-		jdpl_objadd(str, jdpl_vali(i), test);
+		jdpl_objadd(test, str, jdpl_valnum(i));
 	}
 	clock_t end = clock();
 	jdpl_free_obj(test);
@@ -438,7 +438,7 @@ int arr_million_allocation()
 	jdpl_arr* test = jdpl_new_arr();
 	for(int i = 0; i < 1000000; i++)
 	{
-		jdpl_arradd(jdpl_vali(i), test);
+		jdpl_arradd(test, jdpl_valnum(i));
 	}
 	clock_t end = clock();
 	
@@ -471,30 +471,30 @@ int obj_deep_copy()
 	{
 		char str[24];
 		sprintf(str, "%d", i);
-		jdpl_objadd(str, jdpl_vali(i), test);
+		jdpl_objadd(test, str, jdpl_valnum(i));
 	}
 
 	//makes shallow copy of test
 	jdpl_obj* left = jdpl_new_obj();
-	jdpl_objadd("obj", jdpl_valobj(test), left);
+	jdpl_objadd( left, "obj", jdpl_valobj(test));
 
 	//makes deep copy of test
 	jdpl_obj* right = jdpl_new_obj();
-	jdpl_objadd("obj", jdpl_valobj_copy(test), right);
+	jdpl_objadd(right, "obj", jdpl_valobj_copy(test));
 
-	jdpl_obj* left_test = jdpl_objgetobj("obj", left);
-	jdpl_obj* right_test = jdpl_objgetobj("obj", right);
+	jdpl_obj* left_test = jdpl_getobj(jdpl_objget(left, "obj"));
+	jdpl_obj* right_test = jdpl_getobj(jdpl_objget(right, "obj"));
 
-	*jdpl_objgetnum("500", left_test) = 8192;
+	*jdpl_getnum(jdpl_objget(left_test, "500")) = 8192;
 
-	int result = (*jdpl_objgetnum("500", left_test) != *jdpl_objgetnum("500", right_test));
+	int result = (*jdpl_getnum(jdpl_objget(left_test, "500")) != *jdpl_getnum(jdpl_objget(right_test, "500")));
 
 	printf("Object deep copy: %s\n",  result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
 		printf("Expected result: left(8192), right(500)\n");
-		printf("Actual result: left(%f), right(%f)\n\n", *jdpl_objgetnum("500", left_test), *jdpl_objgetnum("500", right_test));
+		printf("Actual result: left(%f), right(%f)\n\n", *jdpl_getnum(jdpl_objget(left_test, "500")), *jdpl_getnum(jdpl_objget(right_test, "500")));
 	}
 
 	jdpl_free_obj(left);
@@ -512,26 +512,26 @@ int arr_deep_copy()
 	jdpl_arr* test = jdpl_new_arr();
 	for(int i = 0; i < 1000; i++)
 	{
-		jdpl_arradd(jdpl_vali(i), test);
+		jdpl_arradd(test, jdpl_valnum(i));
 	}
 
 	jdpl_arr* left = jdpl_new_arr();
-	jdpl_arradd(jdpl_valarr(test), left);
+	jdpl_arradd(left, jdpl_valarr(test));
 	
 	jdpl_arr* right = jdpl_new_arr();
-	jdpl_arradd(jdpl_valarr_copy(test), right);
+	jdpl_arradd(right, jdpl_valarr_copy(test));
 
-	*jdpl_arrgetnum(500, jdpl_arrgetarr(0, left)) = 8192;
+	*jdpl_getnum(jdpl_arrget(jdpl_getarr(jdpl_arrget(left, 0)), 500)) = 8192;
 
-	int result = *jdpl_arrgetnum(500, jdpl_arrgetarr(0, left)) != *jdpl_arrgetnum(500, jdpl_arrgetarr(0, right));
+	int result = *jdpl_getnum(jdpl_arrget(jdpl_getarr(jdpl_arrget(left, 0)), 500)) != *jdpl_getnum(jdpl_arrget(jdpl_getarr(jdpl_arrget(right, 0)), 500));
 	printf("Array deep copy: %s\n", result ? __JDPL__COLOR_GREEN "pass" __JDPL__COLOR_RESET : __JDPL__COLOR_RED "fail" __JDPL__COLOR_RESET);
 
 	if(PRINT_FAILED && (!result))
 	{
 		printf("Expected result: left(8192), right(500)\n");
-		printf("Actual result: left(%f), right(%f)\n\n", *jdpl_arrgetnum(500, jdpl_arrgetarr(0, left)), *jdpl_arrgetnum(500, jdpl_arrgetarr(0, right)));
+		printf("Actual result: left(%f), right(%f)\n\n", *jdpl_getnum(jdpl_arrget(jdpl_getarr(jdpl_arrget(left, 0)), 500)), *jdpl_getnum(jdpl_arrget(jdpl_getarr(jdpl_arrget(right, 0)), 500)));
 	}
-
+	
 	jdpl_free_arr(left);
 	jdpl_free_arr(right);
 	return result;
