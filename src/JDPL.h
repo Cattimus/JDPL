@@ -9,10 +9,6 @@
 #define JDPL_MEMSTEP 1024
 #define JDPL_MIN_SIZE 1024
 
-//TODO - test functions for usability
-//TODO - possibly rethink syntax
-//TODO - add nested object and array get functions
-
 //color for text
 #define __JDPL__COLOR_GREEN "\033[0;32m"
 #define __JDPL__COLOR_RED   "\033[0;31m"
@@ -42,6 +38,7 @@ jdpl_val* jdpl_valnum(double);
 jdpl_val* jdpl_valstr(const char*);
 jdpl_val* jdpl_valobj(jdpl_obj*);
 jdpl_val* jdpl_valarr(jdpl_arr*);
+jdpl_keypair* jdpl_new_keypair(const char*, jdpl_val*);
 
 //value get functions
 double*   jdpl_getnum(jdpl_val*);
@@ -49,8 +46,12 @@ char*     jdpl_getstr(jdpl_val*);
 int       jdpl_getbool(jdpl_val*);
 jdpl_obj* jdpl_getobj(jdpl_val*);
 jdpl_arr* jdpl_getarr(jdpl_val*);
-jdpl_val* jdpl_arrget(unsigned int, jdpl_arr*);
-jdpl_val* jdpl_objget(const char*, jdpl_obj*);
+
+jdpl_val* jdpl_arrget(jdpl_arr*, unsigned int);
+jdpl_val* jdpl_arrget_nested(jdpl_arr*, unsigned int*, unsigned int);
+
+jdpl_val* jdpl_objget(jdpl_obj*, char*);
+jdpl_val* jdpl_objget_nested(jdpl_obj*, char**, unsigned int);
 
 //copy functions
 static size_t    __jdpl__hash_str(const char*, size_t);
@@ -71,14 +72,14 @@ static int  __jdpl__search_obj(const char*, jdpl_obj*);
 static void __jdpl__hashmap_reinsert(jdpl_obj*, jdpl_keypair*);
 static void __jdpl__resize_hashmap(jdpl_obj*, size_t);
 static void __jdpl__objadd_keypair(jdpl_keypair*, jdpl_obj*);
-       void jdpl_objadd(const char*, jdpl_val*, jdpl_obj*);
-       void jdpl_objadd_copy(const char*, jdpl_val*, jdpl_obj*);
+       void jdpl_objadd(jdpl_obj*, char*, jdpl_val*);
+       void jdpl_objadd_copy(char*, jdpl_val*, jdpl_obj*);
 
 //arr set functions
-       void      jdpl_arradd(jdpl_val*, jdpl_arr*);
-       void      jdpl_arrset(jdpl_val*, unsigned int, jdpl_arr*);
-       void      jdpl_arradd_copy(jdpl_val*, jdpl_arr*);
-       void      jdpl_arrset_copy(jdpl_val*, unsigned int, jdpl_arr*);
+       void      jdpl_arradd(jdpl_arr*, jdpl_val*);
+       void      jdpl_arrset(jdpl_arr*, jdpl_val*, unsigned int);
+       void      jdpl_arradd_copy(jdpl_arr*, jdpl_val*);
+       void      jdpl_arrset_copy(jdpl_arr*, jdpl_val*, unsigned int);
 static jdpl_val* __jdpl__search_arr(jdpl_arr*, unsigned int);
 
 //to string functions
@@ -379,6 +380,32 @@ jdpl_val* jdpl_valarr(jdpl_arr* data)
 	return to_return;
 }
 
+jdpl_keypair* jdpl_new_keypair(const char* key, jdpl_val* val)
+{
+	if(!key)
+	{
+		return NULL;
+	}
+
+	if(!val)
+	{
+		return NULL;
+	}
+	
+	jdpl_keypair* to_return = (jdpl_keypair*)malloc(sizeof(jdpl_keypair));
+
+	//assign key
+	int key_len = strlen(key) + 1;
+	to_return->key = (char*)malloc(key_len);
+	memcpy(to_return->key, key, key_len);
+	to_return->key[key_len - 1] = '\0';
+
+	//assign value (shallow copy)
+	to_return->value = val;
+
+	return to_return;
+}
+
 //deep copy json array
 jdpl_val* jdpl_valarr_copy(jdpl_arr* data)
 {
@@ -521,9 +548,9 @@ jdpl_arr* jdpl_getarr(jdpl_val* to_get)
 }
 
 //generic search, gets value at index
-jdpl_val* jdpl_arrget(unsigned int index, jdpl_arr* to_search)
+jdpl_val* jdpl_arrget(jdpl_arr* to_search, unsigned int index)
 {
-	if(to_search == NULL)
+	if(!to_search)
 	{
 		return NULL;
 	}
@@ -531,10 +558,33 @@ jdpl_val* jdpl_arrget(unsigned int index, jdpl_arr* to_search)
 	return __jdpl__search_arr(to_search, index);
 }
 
-//generic search for jdpl_obj
-jdpl_val* jdpl_objget(const char* key, jdpl_obj* to_search)
+//recursive array get
+jdpl_val* jdpl_arrget_nested(jdpl_arr* to_search, unsigned int* indexes, unsigned int len)
 {
-	if(key == NULL || to_search == NULL)
+	if(!to_search)
+	{
+		return NULL;
+	}
+
+	jdpl_val* temp = __jdpl__search_arr(to_search, indexes[0]);
+
+	if(!temp)
+	{
+		return NULL;
+	}
+
+	if(len == 1)
+	{
+		return temp;
+	}
+
+	return jdpl_arrget_nested(jdpl_getarr(temp), indexes+1, len-1);
+}
+
+//generic search for jdpl_obj
+jdpl_val* jdpl_objget( jdpl_obj* to_search, char* key)
+{
+	if(!key || !to_search)
 	{
 		return NULL;
 	}
@@ -546,6 +596,29 @@ jdpl_val* jdpl_objget(const char* key, jdpl_obj* to_search)
 	}
 	
 	return to_search->hashmap[index]->value;
+}
+
+//recursive object get
+jdpl_val* jdpl_objget_nested(jdpl_obj* to_search, char** keys, unsigned int len)
+{
+	if(!keys || !to_search || !keys[0])
+	{
+		return NULL;
+	}
+	
+	int index = __jdpl__search_obj(keys[0], to_search);
+	if(index < 0)
+	{
+		return NULL;
+	}
+
+	if(len == 1)
+	{
+		return to_search->hashmap[index]->value;
+	}
+
+	jdpl_val* temp = to_search->hashmap[index]->value;
+	return jdpl_objget_nested(jdpl_getobj(temp), keys+1, len-1);
 }
 
 /***********************************************************************
@@ -826,7 +899,7 @@ static void __jdpl__objadd_keypair(jdpl_keypair* to_add, jdpl_obj* to_set)
 }
 
 //add a new keypair to object via shallow copy value
-void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
+void jdpl_objadd(jdpl_obj* to_set, char* key, jdpl_val* val)
 {	
 	if(to_set == NULL || key == NULL || val == NULL)
 	{
@@ -858,14 +931,7 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	}
 	
 	//initialize new keypair
-	jdpl_keypair* to_write = (jdpl_keypair*)calloc(sizeof(jdpl_keypair), 1);
-	
-	//deep copy key
-	to_write->key = (char*)malloc(sizeof(char) * strlen(key) + 1);
-	strcpy(to_write->key, key);
-	
-	//shallow copy value
-	to_write->value = val;
+	jdpl_keypair* to_write = jdpl_new_keypair(key, val);
 	
 	//free the old index (if it's filled)
 	if(to_set->hashmap[index] != NULL)
@@ -879,8 +945,55 @@ void jdpl_objadd(const char* key, jdpl_val* val, jdpl_obj* to_set)
 	to_set->count += 1;
 }
 
+//add value to nested object
+void jdpl_objadd_nested(jdpl_obj* to_set, char** keys, int depth, jdpl_val* val)
+{
+	if(!to_set || !keys || !val)
+	{
+		return;
+	}
+	
+	if(!keys[0])
+	{
+		return;
+	}
+
+	int index = __jdpl__search_obj(keys[0], to_set);
+
+	//desired object has been reached, set value
+	if(depth == 1)
+	{	
+		jdpl_objadd(to_set, keys[0], val);
+		return;
+	}
+
+	//value is null and we have more depth to go
+	if(!to_set->hashmap[index])
+	{
+		//create new jdpl_obj
+		jdpl_val* empty = jdpl_valobj(jdpl_new_obj());
+		jdpl_objadd(to_set, keys[0], empty);
+
+		//recursively call function to keep going
+		jdpl_objadd_nested(empty->data.obj, keys+1, depth-1, val);
+	}
+
+	//value is non-null and we wish to traverse
+	else
+	{
+		jdpl_val* to_traverse = jdpl_objget(to_set, keys[0]);
+
+		if(to_traverse->type != JDPL_TYPE_OBJ)
+		{
+			return;
+		}
+
+		jdpl_objadd_nested(to_traverse->data.obj, keys+1, depth-1, val);
+	}
+}
+
 //add a new keypair to object via deep copy value
-void jdpl_objadd_copy(const char* key, jdpl_val* val, jdpl_obj* to_set)
+void jdpl_objadd_copy(char* key, jdpl_val* val, jdpl_obj* to_set)
 {
 	if(to_set == NULL || key == NULL || val == NULL)
 	{
@@ -949,7 +1062,7 @@ static jdpl_val* __jdpl__search_arr(jdpl_arr* to_search, unsigned int index)
 }
 
 //add a value to the jdpl array (shallow copy)
-void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
+void jdpl_arradd(jdpl_arr* to_set, jdpl_val* val)
 {
 	if(val == NULL || to_set == NULL)
 	{
@@ -987,7 +1100,7 @@ void jdpl_arradd(jdpl_val* val, jdpl_arr* to_set)
 }
 
 //add a value to the jdpl array (deep copy)
-void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
+void jdpl_arradd_copy(jdpl_arr* to_set, jdpl_val* val)
 {
 	if(val == NULL || to_set == NULL)
 	{
@@ -1025,7 +1138,7 @@ void jdpl_arradd_copy(jdpl_val* val, jdpl_arr* to_set)
 }
 
 //overwrite value at index with new value (shallow copy)
-void jdpl_arrset(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
+void jdpl_arrset(jdpl_arr* to_set, jdpl_val* val, unsigned int index)
 {
 	if(val == NULL || to_set == NULL)
 	{
@@ -1052,7 +1165,7 @@ void jdpl_arrset(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
 }
 
 //overwrite value at index with new value (deep copy)
-void jdpl_arrset_copy(jdpl_val* val, unsigned int index, jdpl_arr* to_set)
+void jdpl_arrset_copy(jdpl_arr* to_set, jdpl_val* val, unsigned int index)
 {
 	if(val == NULL || to_set == NULL)
 	{
@@ -1973,7 +2086,7 @@ jdpl_arr* jdpl_arr_fromstr(const char* str)
 				jdpl_val* to_add = __jdpl__parse_value(str + val_start, len - val_start);
 				if(to_add)
 				{
-					jdpl_arradd(to_add, to_return);
+					jdpl_arradd(to_return, to_add);
 				}
 				
 				//invalid input (return [])
